@@ -1,0 +1,27 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Extract to fragment component extracts even when nested quite far 1`] = `
+"fragment SomeFragment_user on FriendStatus {
+  from
+  to
+}"
+`;
+
+exports[`Extract to fragment component extracts in simple cases 1`] = `
+"fragment SomeFragment_user on User {
+  firstName
+  lastName
+}"
+`;
+
+exports[`Extract to fragment component extracts in slightly more advanced examples 1`] = `
+"fragment SomeFragment_user on Friend {
+  avatarUrl
+  friendsSince
+  status {
+    since
+    from
+    to
+  }
+}"
+`;

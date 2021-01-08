@@ -1,0 +1,67 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`findGraphQLSources finds ReScript sources 1`] = `
+Array [
+  Object {
+    "content": "
+  fragment SingleTodo_todoItem on TodoItem {
+    id
+    text
+    completed
+  }
+",
+    "end": Object {
+      "character": 0,
+      "line": 7,
+    },
+    "start": Object {
+      "character": 3,
+      "line": 1,
+    },
+    "type": "TAG",
+  },
+  Object {
+    "content": "
+  mutation SingleTodoDeleteMutation(
+    $input: DeleteTodoItemInput!
+    $connections: [ID!]!
+  ) @raw_response_type {
+    deleteTodoItem(input: $input) {
+      deletedTodoItemId @deleteEdge(connections: $connections)
+    }
+  }
+",
+    "end": Object {
+      "character": 0,
+      "line": 20,
+    },
+    "start": Object {
+      "character": 3,
+      "line": 11,
+    },
+    "type": "TAG",
+  },
+  Object {
+    "content": "
+  mutation SingleTodoUpdateMutation($input: UpdateTodoItemInput!) {
+    updateTodoItem(input: $input) {
+      updatedTodoItem {
+        id
+        text
+        completed
+      }
+    }
+  }
+",
+    "end": Object {
+      "character": 0,
+      "line": 34,
+    },
+    "start": Object {
+      "character": 3,
+      "line": 24,
+    },
+    "type": "TAG",
+  },
+]
+`;

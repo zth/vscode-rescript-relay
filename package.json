@@ -1,0 +1,137 @@
+{
+  "name": "vscode-rescript-relay",
+  "description": "Improve quality-of-life of using ReScriptRelay with VSCode.",
+  "version": "0.3.2",
+  "main": "./build/extension.js",
+  "engines": {
+    "vscode": "^1.34.0"
+  },
+  "scripts": {
+    "vscode:prepublish": "yarn build",
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "build": "rm -rf build && tsc",
+    "build:watch": "tsc -w",
+    "test": "jest"
+  },
+  "author": "Gabriel Nordeborn <gabbe.nord@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zth/vscode-rescript-relay"
+  },
+  "publisher": "GabrielNordeborn",
+  "activationEvents": [
+    "workspaceContains:/**/relay.config.js"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#171E26",
+    "theme": "dark"
+  },
+  "license": "MIT",
+  "contributes": {
+    "configuration": {
+      "title": "ReScriptRelay",
+      "properties": {
+        "rescript-relay.autoStartRelayCompiler": {
+          "type": "boolean",
+          "default": true,
+          "description": "Autostart the Relay compiler when in a ReScriptRelay project?"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "vscode-rescript-relay.add-fragment",
+        "title": "Add fragment",
+        "category": "ReScriptRelay",
+        "when": "editorLangId == rescript"
+      },
+      {
+        "command": "vscode-rescript-relay.add-query",
+        "title": "Add query",
+        "category": "ReScriptRelay",
+        "when": "editorLangId == rescript"
+      },
+      {
+        "command": "vscode-rescript-relay.add-mutation",
+        "title": "Add mutation",
+        "category": "ReScriptRelay",
+        "when": "editorLangId == rescript"
+      },
+      {
+        "command": "vscode-rescript-relay.add-subscription",
+        "title": "Add subscription",
+        "category": "ReScriptRelay",
+        "when": "editorLangId == rescript"
+      },
+      {
+        "command": "vscode-rescript-relay.wrap-in-suspense-boundary",
+        "title": "Wrap in suspense boundary",
+        "category": "ReScriptRelay",
+        "when": "editorLangId == rescript"
+      },
+      {
+        "command": "vscode-rescript-relay.wrap-in-suspense-list",
+        "title": "Wrap in suspense list",
+        "category": "ReScriptRelay",
+        "when": "editorLangId == rescript"
+      }
+    ],
+    "languages": [
+      {
+        "id": "graphql",
+        "extensions": [
+          ".gql",
+          ".graphql",
+          ".graphqls"
+        ],
+        "aliases": [
+          "GraphQL"
+        ],
+        "configuration": "./language/language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "graphql",
+        "scopeName": "source.graphql",
+        "path": "./syntaxes/graphql.json"
+      },
+      {
+        "injectTo": [
+          "source.rescript"
+        ],
+        "scopeName": "inline.graphql.rescript",
+        "path": "./syntaxes/graphql.res.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.graphql": "graphql"
+        }
+      }
+    ]
+  },
+  "dependencies": {
+    "graphql": "^14.6.0",
+    "graphql-config": "3.2.0",
+    "graphql-language-service-interface": "2.8.1",
+    "graphql-language-service-parser": "1.9.0",
+    "graphql-language-service-server": "2.6.1",
+    "graphql-language-service-types": "1.8.0",
+    "graphql-language-service-utils": "2.5.0",
+    "locate-character": "^2.0.5",
+    "pascal-case": "^3.1.1",
+    "prettier": "^1.19.1",
+    "typescript": "^4.1.3",
+    "vscode-languageclient": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.20",
+    "@types/node": "^12.12.21",
+    "@types/prettier": "^1.19.0",
+    "jest": "^26.6.3",
+    "ts-jest": "^26.4.4",
+    "vscode": "^1.1.36"
+  }
+}

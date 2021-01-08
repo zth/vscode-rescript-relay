@@ -1,0 +1,13 @@
+*.vsix
+src
+public
+jest.config.js
+.env
+tsconfig*
+tslint*
+*.log
+**/__tests__/**
+out
+.vscode
+.gitignore
+webpack.config.js
