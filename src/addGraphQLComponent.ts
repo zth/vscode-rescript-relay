@@ -119,6 +119,21 @@ export async function addGraphQLComponent(type: InsertGraphQLComponentType) {
         `${moduleName}_${uncapitalize(rModuleName.replace("Fragment", ""))}`,
         onType
       )}\n\`\n)`;
+
+      const shouldInsertComponentBoilerplate =
+        (await window.showQuickPick(["Yes", "No"], {
+          placeHolder: "Do you also want to add boilerplate for a component?",
+        })) === "Yes";
+
+      if (shouldInsertComponentBoilerplate) {
+        insert += `\n\n
+@react.component
+let make = (~${uncapitalize(onType)}) => {
+  let ${uncapitalize(onType)} = ${rModuleName}.use(${uncapitalize(onType)})
+
+  React.null
+}`;
+      }
       break;
     }
     case "Query": {
@@ -166,6 +181,21 @@ export async function addGraphQLComponent(type: InsertGraphQLComponentType) {
         }`,
         queryField
       )}\n\`)`;
+
+      const shouldInsertComponentBoilerplate =
+        (await window.showQuickPick(["Yes", "No"], {
+          placeHolder: "Do you also want to add boilerplate for a component?",
+        })) === "Yes";
+
+      if (shouldInsertComponentBoilerplate) {
+        insert += `\n\n
+@react.component
+let make = () => {
+  let data = ${rModuleName}.use(~variables=(), ())
+
+  React.null
+}`;
+      }
       break;
     }
     case "Mutation": {
@@ -214,6 +244,21 @@ export async function addGraphQLComponent(type: InsertGraphQLComponentType) {
         `${moduleName}_${capitalize(mutation)}Mutation`,
         mutationField
       )}\n\`)`;
+
+      const shouldInsertComponentBoilerplate =
+        (await window.showQuickPick(["Yes", "No"], {
+          placeHolder: "Do you also want to add boilerplate for a component?",
+        })) === "Yes";
+
+      if (shouldInsertComponentBoilerplate) {
+        insert += `\n\n
+@react.component
+let make = () => {
+  let (mutate, isMutating) = ${rModuleName}.use()
+
+  React.null
+}`;
+      }
       break;
     }
 
@@ -260,6 +305,31 @@ export async function addGraphQLComponent(type: InsertGraphQLComponentType) {
         `${moduleName}_${capitalize(subscription)}Subscription`,
         subscriptionField
       )}\n\`)`;
+
+      const shouldInsertComponentBoilerplate =
+        (await window.showQuickPick(["Yes", "No"], {
+          placeHolder: "Do you also want to add boilerplate for a component?",
+        })) === "Yes";
+
+      if (shouldInsertComponentBoilerplate) {
+        insert += `\n\n
+@react.component
+let make = () => {
+  let environment = ReasonRelay.useEnvironmentFromContext()
+
+  React.useEffect0(() => {
+    let subscription = ${rModuleName}.subscribe(
+      ~environment,
+      ~variables=(),
+      (),
+    )
+
+    Some(() => ReasonRelay.Disposable.dispose(subscription))
+  })
+
+  React.null
+}`;
+      }
       break;
     }
   }

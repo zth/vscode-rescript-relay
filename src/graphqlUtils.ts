@@ -23,6 +23,8 @@ import {
   GraphQLUnionType,
   VariableNode,
   OperationTypeNode,
+  GraphQLScalarType,
+  GraphQLEnumType,
 } from "graphql";
 
 import { Position } from "vscode";
@@ -70,9 +72,21 @@ export function runOnNodeAtPos<T extends NodeWithLoc>(
 }
 
 export function getFirstField(
-  obj: GraphQLObjectType | GraphQLInterfaceType
+  obj: GraphQLObjectType | GraphQLInterfaceType,
+  type?: OperationTypeNode
 ): GraphQLField<any, any, { [key: string]: any }> {
   const fields = Object.values(obj.getFields());
+
+  if (type === "mutation") {
+    const firstRealField = fields.find(
+      (v) => v.type instanceof GraphQLObjectType
+    );
+
+    if (firstRealField) {
+      return firstRealField;
+    }
+  }
+
   const hasIdField = fields.find((v) => v.name === "id");
   const firstField = hasIdField ? hasIdField : fields[0];
 
@@ -383,6 +397,11 @@ export async function makeOperation(
             a.type.toString().endsWith("!")
           );
 
+          const firstField =
+            rootFieldType instanceof GraphQLObjectType
+              ? getFirstField(rootFieldType, operationType)
+              : null;
+
           const newNode: OperationDefinitionNode = {
             ...node,
             variableDefinitions: requiredArgs.reduce(
@@ -402,7 +421,21 @@ export async function makeOperation(
                 rootFieldType instanceof GraphQLUnionType ||
                   rootFieldType instanceof GraphQLInterfaceType
                   ? [makeFieldSelection("__typename")]
-                  : undefined,
+                  : rootFieldType instanceof GraphQLScalarType ||
+                    rootFieldType instanceof GraphQLEnumType
+                  ? []
+                  : rootFieldType instanceof GraphQLObjectType
+                  ? [
+                      firstField && firstField.type instanceof GraphQLObjectType
+                        ? makeFieldSelection(
+                            firstField.name,
+                            makeFirstFieldSelection(
+                              firstField.type
+                            ).map((f) => ({ kind: "Field", name: f.name }))
+                          )
+                        : makeFieldSelection(getFirstField(rootFieldType).name),
+                    ]
+                  : [],
                 requiredArgs.map((a) =>
                   makeArgument(a.name, makeVariableNode(a.name))
                 )
