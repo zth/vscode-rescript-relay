@@ -832,19 +832,24 @@ function initCommands(context: ExtensionContext): void {
                   return {
                     ...node,
                     selections: [
-                      newFragmentSelection,
                       ...node.selections.reduce(
                         (acc: SelectionNode[], curr) => {
+                          const thisNodeIsSelectedNode = selectedNodes.some(
+                            (s) =>
+                              s.loc &&
+                              curr.loc &&
+                              s.loc.start === curr.loc.start &&
+                              s.loc.end === curr.loc.end
+                          );
+
                           if (
-                            shouldRemoveSelection &&
-                            !!selectedNodes.find(
-                              (s) =>
-                                s.loc &&
-                                curr.loc &&
-                                s.loc.start === curr.loc.start &&
-                                s.loc.end === curr.loc.end
-                            )
+                            thisNodeIsSelectedNode &&
+                            !acc.includes(newFragmentSelection)
                           ) {
+                            acc.push(newFragmentSelection);
+                          }
+
+                          if (shouldRemoveSelection && thisNodeIsSelectedNode) {
                             return acc;
                           }
 
