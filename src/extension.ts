@@ -177,7 +177,73 @@ type GraphQLTypeAtPos = {
   parentTypeName: string;
 };
 
-function initHoverProviders() {
+// const getOpNameRegex = new RegExp(/[A-Za-z0-9_]*(?=_graphql)/g);
+// const getPathRegex = new RegExp(/Types\.[A-Za-z0-9_]*/g);
+
+function initHoverProviders(_context: ExtensionContext) {
+  /*languages.registerCompletionItemProvider("rescript", {
+    provideCompletionItems(document, position) {
+      const extensionPath = extensions.getExtension(
+        "chenglou92.rescript-vscode"
+      )?.extensionPath;
+
+      if (!extensionPath) {
+        return null;
+      }
+
+      return new Promise((resolve, _reject) => {
+        runDumpCommand(
+          {
+            fileUri: document.uri.toString(),
+            position: new Position(position.line, position.character - 1),
+          },
+          (res) => {
+            //window.showWarningMessage(res?.hover ?? "-");
+            window.showWarningMessage(
+              document.getText(
+                new Range(
+                  new Position(position.line, position.character - 3),
+                  new Position(position.line, position.character - 1)
+                )
+              )
+            );
+            resolve(null);
+
+            const x = false;
+
+            if (x) {
+              const hover = res?.hover;
+
+              if (!hover) {
+                resolve([new CompletionItem("-- no hover..")]);
+                return;
+              }
+
+              const targetOpName = getOpNameRegex.exec(hover)?.[0];
+              const targetPath = getPathRegex
+                .exec(hover)?.[0]
+                .replace("Types.", "");
+
+              if (!targetOpName || !targetPath) {
+                resolve([
+                  new CompletionItem(`${targetOpName}`),
+                  new CompletionItem(`${targetPath}`),
+                ]);
+                return;
+              }
+
+              resolve([
+                new CompletionItem("-- stuff ---"),
+                new CompletionItem(targetOpName),
+                new CompletionItem(targetPath),
+              ]);
+            }
+          },
+          extensionPath
+        );
+      });
+    },
+  });*/
   languages.registerCodeActionsProvider("rescript", {
     async provideCodeActions(
       document,
@@ -1012,7 +1078,7 @@ export async function activate(context: ExtensionContext) {
 
   await initClient();
   initCommands(context);
-  initHoverProviders();
+  initHoverProviders(context);
 
   const schemaWatcher = workspace.createFileSystemWatcher("**/*.graphql");
 

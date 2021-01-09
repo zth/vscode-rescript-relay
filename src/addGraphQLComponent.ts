@@ -1,7 +1,5 @@
 import { InsertGraphQLComponentType } from "./extensionTypes";
-
 import { capitalize, uncapitalize } from "./extensionUtils";
-
 import { loadFullSchema } from "./loadSchema";
 
 import {
