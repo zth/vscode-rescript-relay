@@ -1,5 +1,5 @@
 import { parse, Source, print, buildSchema, SelectionNode } from "graphql";
-import { extractToFragment } from "../extractToFragment";
+import { extractToFragment } from "../createNewFragmentComponentsUtils";
 import { getSelectedGraphQLOperation } from "../findGraphQLSources";
 
 const makeMockNormalizedSelection = (

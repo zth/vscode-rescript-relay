@@ -94,7 +94,10 @@ import {
   getFirstField,
   makeFragment,
 } from "./graphqlUtils";
-import { extractToFragment } from "./extractToFragment";
+import {
+  addFragmentHere,
+  extractToFragment,
+} from "./createNewFragmentComponentsUtils";
 
 function getModuleNameFromFile(uri: Uri): string {
   return capitalize(path.basename(uri.path, ".res"));
@@ -177,12 +180,12 @@ type GraphQLTypeAtPos = {
   parentTypeName: string;
 };
 
-// const getOpNameRegex = new RegExp(/[A-Za-z0-9_]*(?=_graphql)/g);
-// const getPathRegex = new RegExp(/Types\.[A-Za-z0-9_]*/g);
+// const _getOpNameRegex = new RegExp(/[A-Za-z0-9_]*(?=_graphql)/g);
+// const _getPathRegex = new RegExp(/Types\.[A-Za-z0-9_]*/g);
 
 function initHoverProviders(_context: ExtensionContext) {
-  /*languages.registerCompletionItemProvider("rescript", {
-    provideCompletionItems(document, position) {
+  /*languages.registerHoverProvider("rescript", {
+    provideHover(document, position) {
       const extensionPath = extensions.getExtension(
         "chenglou92.rescript-vscode"
       )?.extensionPath;
@@ -195,49 +198,88 @@ function initHoverProviders(_context: ExtensionContext) {
         runDumpCommand(
           {
             fileUri: document.uri.toString(),
-            position: new Position(position.line, position.character - 1),
+            position,
           },
           (res) => {
-            //window.showWarningMessage(res?.hover ?? "-");
-            window.showWarningMessage(
-              document.getText(
-                new Range(
-                  new Position(position.line, position.character - 3),
-                  new Position(position.line, position.character - 1)
+            const hover = res?.hover;
+
+            if (!hover) {
+              resolve(null);
+              return;
+            }
+
+            const targetOpName = getOpNameRegex.exec(hover)?.[0];
+            const targetPath = getPathRegex
+              .exec(hover)?.[0]
+              .replace("Types.", "");
+
+            if (!targetOpName || !targetPath) {
+              resolve(null);
+              return;
+            }
+
+            const allOperationsInDoc = extractGraphQLSources(
+              "rescript",
+              document.getText()
+            );
+
+            if (!allOperationsInDoc) {
+              resolve(null);
+              return;
+            }
+
+            let targetNode:
+              | FragmentDefinitionNode
+              | OperationDefinitionNode
+              | FieldNode
+              | null = null;
+
+            for (const o of allOperationsInDoc) {
+              if (o.type === "TAG") {
+                const parsed = parse(o.content);
+                const targetDef = parsed.definitions[0];
+
+                if (targetDef) {
+                  if (
+                    (targetDef.kind === "FragmentDefinition" &&
+                      targetDef.name.value === targetOpName) ||
+                    (targetDef.kind === "OperationDefinition" &&
+                      targetDef.name?.value === targetOpName)
+                  ) {
+                    targetNode = targetDef as
+                      | FragmentDefinitionNode
+                      | OperationDefinitionNode;
+
+                    // Remove the first part of the path, we know it's the root
+                    let p = targetPath
+                      .split("_")
+                      .slice(1)
+                      .join("_");
+
+                    while (p !== "") {
+                      const nextPathNode = targetNode.selectionSet?.selections.find(
+                        (s) => s.kind === "Field" && p.startsWith(s.name.value)
+                      ) as FieldNode | undefined;
+
+                      if (nextPathNode) {
+                        p = p.slice(nextPathNode.name.value.length);
+                        targetNode = nextPathNode;
+                      } else {
+                        p = "";
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            resolve(
+              new Hover(
+                new MarkdownString(
+                  JSON.stringify({ fieldName: targetNode?.name?.value ?? "-" })
                 )
               )
             );
-            resolve(null);
-
-            const x = false;
-
-            if (x) {
-              const hover = res?.hover;
-
-              if (!hover) {
-                resolve([new CompletionItem("-- no hover..")]);
-                return;
-              }
-
-              const targetOpName = getOpNameRegex.exec(hover)?.[0];
-              const targetPath = getPathRegex
-                .exec(hover)?.[0]
-                .replace("Types.", "");
-
-              if (!targetOpName || !targetPath) {
-                resolve([
-                  new CompletionItem(`${targetOpName}`),
-                  new CompletionItem(`${targetPath}`),
-                ]);
-                return;
-              }
-
-              resolve([
-                new CompletionItem("-- stuff ---"),
-                new CompletionItem(targetOpName),
-                new CompletionItem(targetPath),
-              ]);
-            }
           },
           extensionPath
         );
@@ -358,7 +400,7 @@ function initHoverProviders(_context: ExtensionContext) {
 
           extractFragment.command = {
             title: "Add new fragment component",
-            command: "vscode-rescript-relay.add-new-fragment-component",
+            command: "vscode-rescript-relay.extract-to-new-fragment-component",
             arguments: [
               document.uri,
               document.getText(),
@@ -372,6 +414,37 @@ function initHoverProviders(_context: ExtensionContext) {
           };
 
           actions.push(extractFragment);
+        }
+
+        const canAddFragmentHere = addFragmentHere({
+          parsedOp,
+          schema,
+          normalizedSelection: getNormalizedSelection(selection, selectedOp),
+          source,
+        });
+        if (canAddFragmentHere) {
+          // Adding a new fragment component
+          const addFragmentHereAction = new CodeAction(
+            `Add new fragment component here`,
+            CodeActionKind.Refactor
+          );
+
+          addFragmentHereAction.command = {
+            title: "Add new fragment component",
+            command: "vscode-rescript-relay.extract-to-new-fragment-component",
+            arguments: [
+              document.uri,
+              document.getText(),
+              selection,
+              {
+                parentTypeName: canAddFragmentHere.parentTypeName,
+              },
+              canAddFragmentHere.addBeforeThisSelection,
+              canAddFragmentHere.targetSelection,
+            ],
+          };
+
+          actions.push(addFragmentHereAction);
         }
       }
 
@@ -749,13 +822,13 @@ function initCommands(context: ExtensionContext): void {
       }
     }),
     commands.registerCommand(
-      "vscode-rescript-relay.add-new-fragment-component",
+      "vscode-rescript-relay.extract-to-new-fragment-component",
       async (
         _uri: Uri,
         doc: string,
         selection: Range,
         typeInfo: GraphQLTypeAtPos,
-        selectedNodes: SelectionNode[],
+        selectedNodeOrNodes: SelectionNode[] | SelectionNode,
         targetSelection: SelectionSetNode
       ) => {
         const editor = window.activeTextEditor;
@@ -789,11 +862,12 @@ function initCommands(context: ExtensionContext): void {
           return;
         }
 
-        const shouldRemoveSelection =
-          (await window.showQuickPick(["Yes", "No"], {
-            placeHolder:
-              "Do you want to remove the selection from this fragment?",
-          })) === "Yes";
+        const shouldRemoveSelection = Array.isArray(selectedNodeOrNodes)
+          ? (await window.showQuickPick(["Yes", "No"], {
+              placeHolder:
+                "Do you want to remove the selection from this fragment?",
+            })) === "Yes"
+          : false;
 
         const shouldOpenFileDirectly =
           (await window.showQuickPick(["Yes", "No"], {
@@ -834,13 +908,19 @@ function initCommands(context: ExtensionContext): void {
                     selections: [
                       ...node.selections.reduce(
                         (acc: SelectionNode[], curr) => {
-                          const thisNodeIsSelectedNode = selectedNodes.some(
-                            (s) =>
-                              s.loc &&
-                              curr.loc &&
-                              s.loc.start === curr.loc.start &&
-                              s.loc.end === curr.loc.end
-                          );
+                          const thisNodeIsSelectedNode = Array.isArray(
+                            selectedNodeOrNodes
+                          )
+                            ? selectedNodeOrNodes.some(
+                                (s) =>
+                                  s.loc &&
+                                  curr.loc &&
+                                  s.loc.start === curr.loc.start &&
+                                  s.loc.end === curr.loc.end
+                              )
+                            : curr.loc?.start ===
+                                selectedNodeOrNodes.loc?.start &&
+                              curr.loc?.end === selectedNodeOrNodes.loc?.end;
 
                           if (
                             thisNodeIsSelectedNode &&
@@ -878,7 +958,9 @@ function initCommands(context: ExtensionContext): void {
         const newFragment = await makeFragment(
           fragmentName,
           typeInfo.parentTypeName,
-          selectedNodes
+          Array.isArray(selectedNodeOrNodes)
+            ? selectedNodeOrNodes
+            : [makeFieldSelection("__typename")]
         );
 
         fs.writeFileSync(
