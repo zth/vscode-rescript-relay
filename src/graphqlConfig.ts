@@ -1,15 +1,15 @@
-import { GraphQLConfig, loadConfigSync } from "graphql-config";
+import { GraphQLConfig, loadConfig } from "graphql-config";
 import {
   AddInternalIDsExtension,
   RelayDirectivesExtension,
 } from "./configUtils";
 import * as path from "path";
 
-export function createGraphQLConfig(
+export async function createGraphQLConfig(
   workspaceBaseDir: string,
   includeValidationRules?: boolean
-): GraphQLConfig | undefined {
-  const config = loadConfigSync({
+): Promise<GraphQLConfig | undefined> {
+  const config = await loadConfig({
     configName: "relay",
     extensions: [
       RelayDirectivesExtension,
@@ -20,6 +20,10 @@ export function createGraphQLConfig(
     ],
     rootDir: workspaceBaseDir,
   });
+
+  if (!config) {
+    return;
+  }
 
   if (includeValidationRules) {
     const project = config.getProject();
