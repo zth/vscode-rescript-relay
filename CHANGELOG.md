@@ -1,4 +1,6 @@
-## master
+## main
+
+## 0.3.3
 
 - Print error when detecting ReasonRelay/ReScriptRelay versions that aren't high enough to support this extension.
 
