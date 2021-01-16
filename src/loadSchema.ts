@@ -1,8 +1,9 @@
 import { GraphQLSchema } from "graphql";
-import { workspace } from "vscode";
+import { workspace, window } from "vscode";
 import { createGraphQLConfig } from "./graphqlConfig";
 import { GraphQLConfig } from "graphql-config";
 import * as path from "path";
+import semver from "semver";
 
 interface SchemaCache {
   config: GraphQLConfig;
@@ -171,7 +172,24 @@ export async function isReScriptRelayProject(): Promise<boolean> {
           ...Object.keys(pkgJson.dependencies || {}),
           ...Object.keys(pkgJson.peerDependencies || {}),
         ];
-        return !!deps.find((d) => d === "reason-relay");
+        return deps.some((d) => {
+          if (d === "reason-relay") {
+            const version: string = {
+              ...pkgJson.dependencies,
+              ...pkgJson.peerDependencies,
+            }["reason-relay"];
+
+            if (semver.satisfies(version, ">=0.13.0")) {
+              return true;
+            } else {
+              window.showErrorMessage(
+                "`vscode-rescript-relay` only supports ReasonRelay/ReScriptRelay versions >= 0.13.0"
+              );
+            }
+          }
+
+          return false;
+        });
       }
     } catch {}
   }

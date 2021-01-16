@@ -1,5 +1,7 @@
 ## master
 
+- Print error when detecting ReasonRelay/ReScriptRelay versions that aren't high enough to support this extension.
+
 ## 0.3.1
 
 - Adding fragments/queries/mutations/subscriptions is now done properly through ASTs, which will increase the stability of using them quite a lot.
