@@ -1,6 +1,6 @@
 # vscode-rescript-relay
 
-Improve quality-of-life of using ReScriptRelay with VSCode.
+Improve quality-of-life of using ReScriptRelay with VSCode. **This requires ReasonRelay of version >= 0.13.0 and that you only use ReScript syntax with ReasonRelay.**
 
 ## Setup
 
@@ -19,6 +19,8 @@ This extension should _Just Work(tm)_, as it finds and uses your `relay.config.j
 - Automatically formatting all GraphQL operations in your documents on save using `prettier`.
 - Run the Relay compiler through VSCode directly, and get notified when it errors.
 - Project is refreshed and recompiled whenever `relay.config.js` changes.
+- A ton of codegen and automatic GraphQL refactoring is supported.
+- Easily generate new components, extract existing selections to new fragment components, etc.
 
 ### Code generation
 
@@ -32,6 +34,10 @@ Provides commands to generate boilerplate for `fragments`, `queries`, `mutations
 The added GraphQL definition can also automatically be edited in GraphiQL using the `vscode-graphiql-explorer` extension if that is installed.
 
 ### Relay GraphQL Code actions
+
+#### Add new fragment component at location in GraphQL operation
+
+Inside any GraphQL definition, put your cursor on a field, activate code actions and choose `Add new fragment component here`. This will create a new component with a fragment and add that fragment next to your cursor.
 
 #### Extract field selections to new fragment component
 
