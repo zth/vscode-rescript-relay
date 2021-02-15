@@ -2,13 +2,13 @@ import { startServer } from "graphql-language-service-server";
 import { Range, Position } from "graphql-language-service-utils";
 import { CachedContent } from "graphql-language-service-types";
 import { extractGraphQLSources } from "./findGraphQLSources";
-import { createGraphQLConfig } from "./graphqlConfig";
+import { createGraphQLConfigSync } from "./graphqlConfig";
 
 (async () => {
   try {
     await startServer({
       method: "node",
-      config: await createGraphQLConfig(process.env.ROOT_DIR || "", true),
+      config: createGraphQLConfigSync(process.env.ROOT_DIR || "", true),
       parser: (doc: string) => {
         const sources = extractGraphQLSources("rescript", doc);
 

@@ -1,5 +1,9 @@
 ## main
 
+## 0.3.5
+
+- Small bug fix, make the GraphQL LSP work again.
+
 ## 0.3.4
 
 - Small bug fix.
