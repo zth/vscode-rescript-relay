@@ -1,5 +1,9 @@
 ## main
 
+## 0.3.6
+
+- Fix up detection of the ReScriptRelay version.
+
 ## 0.3.5
 
 - Small bug fix, make the GraphQL LSP work again.
