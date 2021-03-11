@@ -376,17 +376,25 @@ export async function makeFragment(
   throw new Error("Could not build fragment...");
 }
 
-export async function makeOperation(
-  operationType: OperationTypeNode,
-  operationName: string,
+interface MakeOperationConfig {
+  operationType: OperationTypeNode;
+  operationName: string;
   rootField: GraphQLField<
     any,
     any,
     {
       [key: string]: any;
     }
-  >
-): Promise<string> {
+  >;
+  onType?: string;
+}
+
+export async function makeOperation({
+  operationType,
+  operationName,
+  rootField,
+  onType,
+}: MakeOperationConfig): Promise<string> {
   return prettify(
     print(
       visit(parse(`${operationType} ${operationName} { __typename }`), {
@@ -420,7 +428,22 @@ export async function makeOperation(
                 rootField.name,
                 rootFieldType instanceof GraphQLUnionType ||
                   rootFieldType instanceof GraphQLInterfaceType
-                  ? [makeFieldSelection("__typename")]
+                  ? onType
+                    ? [
+                        makeFieldSelection("__typename"),
+                        {
+                          kind: "InlineFragment",
+                          typeCondition: {
+                            kind: "NamedType",
+                            name: { kind: "Name", value: onType },
+                          },
+                          selectionSet: {
+                            kind: "SelectionSet",
+                            selections: [makeFieldSelection("id")],
+                          },
+                        },
+                      ]
+                    : [makeFieldSelection("__typename")]
                   : rootFieldType instanceof GraphQLScalarType ||
                     rootFieldType instanceof GraphQLEnumType
                   ? []

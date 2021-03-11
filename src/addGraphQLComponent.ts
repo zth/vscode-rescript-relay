@@ -10,6 +10,7 @@ import {
   GraphQLObjectType,
   GraphQLInterfaceType,
   GraphQLUnionType,
+  isInterfaceType,
 } from "graphql";
 import { makeFragment, makeOperation } from "./graphqlUtils";
 
@@ -166,15 +167,32 @@ let make = (~${uncapitalize(onType)}) => {
         return;
       }
 
+      let onType: string | undefined;
+
+      if (queryField.name === "node" && isInterfaceType(queryField.type)) {
+        const schema = await schemaPromise;
+        if (schema) {
+          const possibleTypes = schema.getPossibleTypes(queryField.type);
+          onType = await window.showQuickPick(
+            possibleTypes.map((pt) => pt.name),
+            {
+              placeHolder:
+                "What type do you want to use on the node interface?",
+            }
+          );
+        }
+      }
+
       const rModuleName = await getValidModuleName(docText, `Query`);
 
-      insert += `module ${rModuleName} = %relay(\`\n  ${await makeOperation(
-        "query",
-        `${moduleName}${rModuleName}${
+      insert += `module ${rModuleName} = %relay(\`\n  ${await makeOperation({
+        operationType: "query",
+        operationName: `${moduleName}${rModuleName}${
           rModuleName.endsWith("Query") ? "" : "Query"
         }`,
-        queryField
-      )}\n\`)`;
+        rootField: queryField,
+        onType,
+      })}\n\`)`;
 
       const shouldInsertComponentBoilerplate =
         (await window.showQuickPick(["Yes", "No"], {
@@ -241,11 +259,11 @@ let make = (${typeOfQuery === "Preloaded" ? "~queryRef" : ""}) => {
         `${capitalize(mutation)}Mutation`
       );
 
-      insert += `module ${rModuleName} = %relay(\`\n  ${await makeOperation(
-        "mutation",
-        `${moduleName}_${capitalize(mutation)}Mutation`,
-        mutationField
-      )}\n\`)`;
+      insert += `module ${rModuleName} = %relay(\`\n  ${await makeOperation({
+        operationType: "mutation",
+        operationName: `${moduleName}_${capitalize(mutation)}Mutation`,
+        rootField: mutationField,
+      })}\n\`)`;
 
       const shouldInsertComponentBoilerplate =
         (await window.showQuickPick(["Yes", "No"], {
@@ -302,11 +320,11 @@ let make = () => {
 
       const rModuleName = await getValidModuleName(docText, `Subscription`);
 
-      insert += `module ${rModuleName} = %relay(\`\n  ${await makeOperation(
-        "subscription",
-        `${moduleName}_${capitalize(subscription)}Subscription`,
-        subscriptionField
-      )}\n\`)`;
+      insert += `module ${rModuleName} = %relay(\`\n  ${await makeOperation({
+        operationType: "subscription",
+        operationName: `${moduleName}_${capitalize(subscription)}Subscription`,
+        rootField: subscriptionField,
+      })}\n\`)`;
 
       const shouldInsertComponentBoilerplate =
         (await window.showQuickPick(["Yes", "No"], {
