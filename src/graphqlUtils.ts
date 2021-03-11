@@ -479,3 +479,31 @@ export async function makeOperation({
     )
   );
 }
+
+export const makeConnectionsVariable = (
+  op: OperationDefinitionNode
+): VariableDefinitionNode[] => {
+  return [
+    ...(op.variableDefinitions ?? []),
+    {
+      kind: "VariableDefinition",
+      variable: {
+        kind: "Variable",
+        name: { kind: "Name", value: "connections" },
+      },
+      type: {
+        kind: "NonNullType",
+        type: {
+          kind: "ListType",
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "ID" },
+            },
+          },
+        },
+      },
+    },
+  ];
+};

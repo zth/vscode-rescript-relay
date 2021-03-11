@@ -72,6 +72,7 @@ import {
   InlineFragmentNode,
   GraphQLInterfaceType,
   OperationDefinitionNode,
+  ArgumentNode,
 } from "graphql";
 import {
   loadFullSchema,
@@ -94,6 +95,7 @@ import {
   makeFieldSelection,
   getFirstField,
   makeFragment,
+  makeConnectionsVariable,
 } from "./graphqlUtils";
 import {
   addFragmentHere,
@@ -586,24 +588,43 @@ function initHoverProviders(_context: ExtensionContext) {
           (state.kind === "Field" || state.kind === "AliasedField") &&
           t instanceof GraphQLObjectType
         ) {
-          // @append/prependNode
           const directives: string[] = [];
 
-          visit(parsedOp, {
-            Field(node) {
-              runOnNodeAtPos(source, node, startPos, (n) => {
-                if (!nodeHasDirective(n, "appendNode")) {
-                  directives.push("appendNode");
-                }
+          if (t.name.toLowerCase().endsWith("edge")) {
+            // @append/prependEdge
+            visit(parsedOp, {
+              Field(node) {
+                runOnNodeAtPos(source, node, startPos, (n) => {
+                  if (!nodeHasDirective(n, "appendEdge")) {
+                    directives.push("appendEdge");
+                  }
 
-                if (!nodeHasDirective(n, "prependNode")) {
-                  directives.push("prependNode");
-                }
+                  if (!nodeHasDirective(n, "prependEdge")) {
+                    directives.push("prependEdge");
+                  }
 
-                return n;
-              });
-            },
-          });
+                  return n;
+                });
+              },
+            });
+          } else {
+            // @append/prependNode
+            visit(parsedOp, {
+              Field(node) {
+                runOnNodeAtPos(source, node, startPos, (n) => {
+                  if (!nodeHasDirective(n, "appendNode")) {
+                    directives.push("appendNode");
+                  }
+
+                  if (!nodeHasDirective(n, "prependNode")) {
+                    directives.push("prependNode");
+                  }
+
+                  return n;
+                });
+              },
+            });
+          }
 
           if (directives.length > 0) {
             directives.forEach((dir) => {
@@ -627,29 +648,7 @@ function initHoverProviders(_context: ExtensionContext) {
 
                     return {
                       ...op,
-                      variableDefinitions: [
-                        ...(op.variableDefinitions ?? []),
-                        {
-                          kind: "VariableDefinition",
-                          variable: {
-                            kind: "Variable",
-                            name: { kind: "Name", value: "connections" },
-                          },
-                          type: {
-                            kind: "NonNullType",
-                            type: {
-                              kind: "ListType",
-                              type: {
-                                kind: "NonNullType",
-                                type: {
-                                  kind: "NamedType",
-                                  name: { kind: "Name", value: "ID" },
-                                },
-                              },
-                            },
-                          },
-                        },
-                      ],
+                      variableDefinitions: makeConnectionsVariable(op),
                     };
                   },
                   Field(node) {
@@ -658,6 +657,18 @@ function initHoverProviders(_context: ExtensionContext) {
                       node,
                       startPos,
                       (n): FieldNode => {
+                        const connectionArg: ArgumentNode = {
+                          kind: "Argument",
+                          name: { kind: "Name", value: "connections" },
+                          value: {
+                            kind: "Variable",
+                            name: {
+                              value: "connections",
+                              kind: "Name",
+                            },
+                          },
+                        };
+
                         return {
                           ...n,
                           directives: [
@@ -665,27 +676,22 @@ function initHoverProviders(_context: ExtensionContext) {
                             {
                               kind: "Directive",
                               name: { kind: "Name", value: dir },
-                              arguments: [
-                                {
-                                  kind: "Argument",
-                                  name: { kind: "Name", value: "connections" },
-                                  value: {
-                                    kind: "Variable",
-                                    name: {
-                                      value: "connections",
-                                      kind: "Name",
+                              arguments: dir.endsWith("Node")
+                                ? [
+                                    connectionArg,
+                                    {
+                                      kind: "Argument",
+                                      name: {
+                                        kind: "Name",
+                                        value: "edgeTypeName",
+                                      },
+                                      value: {
+                                        kind: "StringValue",
+                                        value: `${t.name}Edge`,
+                                      },
                                     },
-                                  },
-                                },
-                                {
-                                  kind: "Argument",
-                                  name: { kind: "Name", value: "edgeTypeName" },
-                                  value: {
-                                    kind: "StringValue",
-                                    value: `${t.name}Edge`,
-                                  },
-                                },
-                              ],
+                                  ]
+                                : [connectionArg],
                             },
                           ],
                         };
