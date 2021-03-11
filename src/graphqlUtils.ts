@@ -387,6 +387,8 @@ interface MakeOperationConfig {
     }
   >;
   onType?: string;
+  skipAddingFieldSelections?: boolean;
+  creator?: (node: OperationDefinitionNode) => OperationDefinitionNode;
 }
 
 export async function makeOperation({
@@ -394,11 +396,16 @@ export async function makeOperation({
   operationName,
   rootField,
   onType,
+  creator,
 }: MakeOperationConfig): Promise<string> {
   return prettify(
     print(
       visit(parse(`${operationType} ${operationName} { __typename }`), {
         OperationDefinition(node) {
+          if (creator) {
+            return creator(node);
+          }
+
           const rootFieldType = getNamedType(rootField.type);
 
           const requiredArgs = rootField.args.filter((a) =>

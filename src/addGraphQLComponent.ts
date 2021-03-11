@@ -11,8 +11,16 @@ import {
   GraphQLInterfaceType,
   GraphQLUnionType,
   isInterfaceType,
+  isObjectType,
+  VariableDefinitionNode,
+  ArgumentNode,
 } from "graphql";
-import { makeFragment, makeOperation } from "./graphqlUtils";
+import {
+  makeFieldSelection,
+  makeFragment,
+  makeOperation,
+  makeVariableDefinitionNode,
+} from "./graphqlUtils";
 
 async function getValidModuleName(
   docText: string,
@@ -254,15 +262,118 @@ let make = (${typeOfQuery === "Preloaded" ? "~queryRef" : ""}) => {
         return;
       }
 
+      let mutationSubFieldConfig:
+        | {
+            fieldName: string;
+            args: {
+              name: string;
+              type: string;
+            }[];
+          }
+        | undefined;
+
+      if (isObjectType(mutationField.type)) {
+        window.showInformationMessage(
+          JSON.stringify({ name: mutationField.type.name })
+        );
+
+        const fields = mutationField.type.getFields();
+        const fieldNames = Object.keys(fields);
+        const field =
+          fieldNames.length === 1
+            ? fieldNames[0]
+            : await window.showQuickPick(fieldNames, {
+                placeHolder:
+                  "Select the field you want to target on your mutation",
+              });
+
+        if (field) {
+          const theField = fields[field];
+          const args = mutationField.args.filter((arg) =>
+            arg.type.toString().endsWith("!")
+          );
+
+          mutationSubFieldConfig = {
+            fieldName: theField.name,
+            args: args.map((arg) => ({
+              name: arg.name,
+              type: arg.type.toString(),
+            })),
+          };
+        }
+      }
+
       const rModuleName = await getValidModuleName(
         docText,
         `${capitalize(mutation)}Mutation`
       );
 
+      window.showInformationMessage(JSON.stringify(mutationSubFieldConfig));
+
       insert += `module ${rModuleName} = %relay(\`\n  ${await makeOperation({
         operationType: "mutation",
         operationName: `${moduleName}_${capitalize(mutation)}Mutation`,
         rootField: mutationField,
+        skipAddingFieldSelections: !!mutationSubFieldConfig,
+        creator: mutationSubFieldConfig
+          ? (node) => {
+              if (!mutationSubFieldConfig) {
+                return node;
+              }
+
+              return {
+                ...node,
+                variableDefinitions: mutationSubFieldConfig.args.reduce(
+                  (acc: VariableDefinitionNode[], curr) => {
+                    const varNode = makeVariableDefinitionNode(
+                      curr.name,
+                      curr.type
+                    );
+
+                    if (varNode) {
+                      acc.push(varNode);
+                    }
+                    return acc;
+                  },
+                  []
+                ),
+                selectionSet: {
+                  kind: "SelectionSet",
+                  selections: [
+                    {
+                      kind: "Field",
+                      arguments: mutationSubFieldConfig.args.map(
+                        (arg): ArgumentNode => ({
+                          kind: "Argument",
+                          value: {
+                            kind: "Variable",
+                            name: {
+                              kind: "Name",
+                              value: arg.name,
+                            },
+                          },
+                          name: {
+                            kind: "Name",
+                            value: arg.name,
+                          },
+                        })
+                      ),
+                      name: {
+                        kind: "Name",
+                        value: mutationField.name,
+                      },
+                      selectionSet: {
+                        kind: "SelectionSet",
+                        selections: [
+                          makeFieldSelection(mutationSubFieldConfig.fieldName),
+                        ],
+                      },
+                    },
+                  ],
+                },
+              };
+            }
+          : undefined,
       })}\n\`)`;
 
       const shouldInsertComponentBoilerplate =
