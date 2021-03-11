@@ -5,6 +5,7 @@
 - Add option to add query boilerplate for preloaded query.
 - Add step for selecting what type to expand when generating a query that uses the node interface/node top level field.
 - Add step for autogenerating any needed variables etc when codegenning mutations.
+- Add code actions for adding `@appendNode/prependNode`.
 
 ## 0.3.6
 

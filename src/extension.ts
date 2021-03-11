@@ -71,6 +71,7 @@ import {
   SelectionSetNode,
   InlineFragmentNode,
   GraphQLInterfaceType,
+  OperationDefinitionNode,
 } from "graphql";
 import {
   loadFullSchema,
@@ -513,9 +514,7 @@ function initHoverProviders(_context: ExtensionContext) {
                       },
                       value: {
                         kind: "StringValue",
-                        value: findPath(state)
-                          .reverse()
-                          .join("_"),
+                        value: findPath(state).reverse().join("_"),
                       },
                     },
                   ]),
@@ -573,6 +572,132 @@ function initHoverProviders(_context: ExtensionContext) {
           );
 
           actions.push(makeTestOperation);
+        }
+      }
+
+      // Store updaters
+      if (
+        firstDef &&
+        firstDef.kind === "OperationDefinition" &&
+        (firstDef.operation === "mutation" ||
+          firstDef.operation === "subscription")
+      ) {
+        if (
+          (state.kind === "Field" || state.kind === "AliasedField") &&
+          t instanceof GraphQLObjectType
+        ) {
+          // @append/prependNode
+          const directives: string[] = [];
+
+          visit(parsedOp, {
+            Field(node) {
+              runOnNodeAtPos(source, node, startPos, (n) => {
+                if (!nodeHasDirective(n, "appendNode")) {
+                  directives.push("appendNode");
+                }
+
+                if (!nodeHasDirective(n, "prependNode")) {
+                  directives.push("prependNode");
+                }
+
+                return n;
+              });
+            },
+          });
+
+          if (directives.length > 0) {
+            directives.forEach((dir) => {
+              const action = new CodeAction(
+                `Add @${dir}`,
+                CodeActionKind.RefactorRewrite
+              );
+
+              action.edit = makeReplaceOperationEdit(
+                document.uri,
+                selectedOp,
+                visit(parsedOp, {
+                  OperationDefinition(op): OperationDefinitionNode {
+                    if (
+                      op.variableDefinitions?.some(
+                        (v) => v.variable.name.value === "connections"
+                      )
+                    ) {
+                      return op;
+                    }
+
+                    return {
+                      ...op,
+                      variableDefinitions: [
+                        ...(op.variableDefinitions ?? []),
+                        {
+                          kind: "VariableDefinition",
+                          variable: {
+                            kind: "Variable",
+                            name: { kind: "Name", value: "connections" },
+                          },
+                          type: {
+                            kind: "NonNullType",
+                            type: {
+                              kind: "ListType",
+                              type: {
+                                kind: "NonNullType",
+                                type: {
+                                  kind: "NamedType",
+                                  name: { kind: "Name", value: "ID" },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      ],
+                    };
+                  },
+                  Field(node) {
+                    return runOnNodeAtPos(
+                      source,
+                      node,
+                      startPos,
+                      (n): FieldNode => {
+                        return {
+                          ...n,
+                          directives: [
+                            ...(n.directives ?? []),
+                            {
+                              kind: "Directive",
+                              name: { kind: "Name", value: dir },
+                              arguments: [
+                                {
+                                  kind: "Argument",
+                                  name: { kind: "Name", value: "connections" },
+                                  value: {
+                                    kind: "Variable",
+                                    name: {
+                                      value: "connections",
+                                      kind: "Name",
+                                    },
+                                  },
+                                },
+                                {
+                                  kind: "Argument",
+                                  name: { kind: "Name", value: "edgeTypeName" },
+                                  value: {
+                                    kind: "StringValue",
+                                    value: `${t.name}Edge`,
+                                  },
+                                },
+                              ],
+                            },
+                          ],
+                        };
+                      }
+                    );
+                  },
+                })
+              );
+
+              actions.push(action);
+            });
+          }
         }
       }
 
