@@ -25,15 +25,15 @@ import {
 } from "vscode";
 
 import {
-  LanguageClient,
   LanguageClientOptions,
-  ServerOptions,
-  TransportKind,
   Command,
   RevealOutputChannelOn,
   Disposable,
   HandleDiagnosticsSignature,
-} from "vscode-languageclient";
+  ServerOptions,
+  LanguageClient,
+  TransportKind,
+} from "vscode-languageclient/node";
 
 import {
   prettify,
