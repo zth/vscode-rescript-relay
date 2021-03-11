@@ -182,10 +182,18 @@ let make = (~${uncapitalize(onType)}) => {
         })) === "Yes";
 
       if (shouldInsertComponentBoilerplate) {
+        const typeOfQuery = await window.showQuickPick(["Preloaded", "Lazy"], {
+          placeHolder: "What type of query are you making?",
+        });
+
         insert += `\n\n
 @react.component
-let make = () => {
-  let data = ${rModuleName}.use(~variables=(), ())
+let make = (${typeOfQuery === "Preloaded" ? "~queryRef" : ""}) => {
+  ${
+    typeOfQuery === "Preloaded"
+      ? `let data = ${rModuleName}.usePreloaded(~queryRef, ())`
+      : `let data = ${rModuleName}.use(~variables=(), ())`
+  }
 
   React.null
 }`;

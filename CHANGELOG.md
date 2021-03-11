@@ -2,6 +2,7 @@
 
 - Make it work with the officially released `rescript-relay` package.
 - Remove `vscode-graphiql-explorer` integration.
+- Add option to add query boilerplate for preloaded query.
 
 ## 0.3.6
 
