@@ -1135,7 +1135,10 @@ function initLanguageServer(
 }
 
 export async function activate(context: ExtensionContext) {
-  if (!(await isReScriptRelayProject())) {
+  const projectType = await isReScriptRelayProject();
+
+  if (!projectType) {
+    window.showErrorMessage("not rescript relay project");
     return;
   }
 
@@ -1256,7 +1259,7 @@ export async function activate(context: ExtensionContext) {
       commands.registerCommand("vscode-rescript-relay.start-compiler", () => {
         childProcess = cp.spawn(
           // TODO: Do a more robust solution for the PATH that also works with Windows
-          "PATH=$PATH:./node_modules/.bin reason-relay-compiler",
+          `PATH=$PATH:./node_modules/.bin ${projectType.type}-compiler`,
           ["--watch"],
           {
             cwd: graphqlConfig.dirpath,

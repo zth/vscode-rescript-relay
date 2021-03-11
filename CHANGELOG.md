@@ -1,5 +1,7 @@
 ## main
 
+- Make it work with the officially released `rescript-relay` package.
+
 ## 0.3.6
 
 - Fix up detection of the ReScriptRelay version.

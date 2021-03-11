@@ -153,7 +153,9 @@ export async function loadRelayConfig(): Promise<RelayConfig | undefined> {
   }
 }
 
-export async function isReScriptRelayProject(): Promise<boolean> {
+export async function isReScriptRelayProject(): Promise<{
+  type: "rescript-relay" | "reason-relay";
+} | null> {
   const [config, relayConfig] = await Promise.all([
     loadGraphQLConfig(),
     loadRelayConfig(),
@@ -172,7 +174,11 @@ export async function isReScriptRelayProject(): Promise<boolean> {
           ...Object.keys(pkgJson.dependencies || {}),
           ...Object.keys(pkgJson.peerDependencies || {}),
         ];
-        return deps.some((d) => {
+        for (const d of deps) {
+          if (d === "rescript-relay") {
+            return { type: "rescript-relay" };
+          }
+
           if (d === "reason-relay") {
             const version: string = {
               ...pkgJson.dependencies,
@@ -180,19 +186,18 @@ export async function isReScriptRelayProject(): Promise<boolean> {
             }["reason-relay"];
 
             if (hasHighEnoughReScriptRelayVersion(version)) {
-              return true;
+              return { type: "reason-relay" };
             } else {
               window.showWarningMessage(
                 "`vscode-rescript-relay` only supports ReasonRelay/ReScriptRelay versions >= 0.13.0."
               );
+              return null;
             }
           }
-
-          return false;
-        });
+        }
       }
     } catch {}
   }
 
-  return false;
+  return null;
 }
