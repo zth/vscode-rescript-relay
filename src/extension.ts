@@ -584,12 +584,34 @@ function initHoverProviders(_context: ExtensionContext) {
         (firstDef.operation === "mutation" ||
           firstDef.operation === "subscription")
       ) {
+        const directives: string[] = [];
+
+        if (
+          (state.kind === "Field" || state.kind === "AliasedField") &&
+          t &&
+          getNamedType(t).name === "ID"
+        ) {
+          visit(parsedOp, {
+            Field(node) {
+              runOnNodeAtPos(source, node, startPos, (n) => {
+                if (!nodeHasDirective(n, "deleteEdge")) {
+                  directives.push("deleteEdge");
+                }
+
+                if (!nodeHasDirective(n, "deleteRecord")) {
+                  directives.push("deleteRecord");
+                }
+
+                return n;
+              });
+            },
+          });
+        }
+
         if (
           (state.kind === "Field" || state.kind === "AliasedField") &&
           t instanceof GraphQLObjectType
         ) {
-          const directives: string[] = [];
-
           if (t.name.toLowerCase().endsWith("edge")) {
             // @append/prependEdge
             visit(parsedOp, {
@@ -625,58 +647,63 @@ function initHoverProviders(_context: ExtensionContext) {
               },
             });
           }
+        }
 
-          if (directives.length > 0) {
-            directives.forEach((dir) => {
-              const action = new CodeAction(
-                `Add @${dir}`,
-                CodeActionKind.RefactorRewrite
-              );
+        if (directives.length > 0 && t) {
+          directives.forEach((dir) => {
+            const action = new CodeAction(
+              `Add @${dir}`,
+              CodeActionKind.RefactorRewrite
+            );
 
-              action.edit = makeReplaceOperationEdit(
-                document.uri,
-                selectedOp,
-                visit(parsedOp, {
-                  OperationDefinition(op): OperationDefinitionNode {
-                    if (
-                      op.variableDefinitions?.some(
-                        (v) => v.variable.name.value === "connections"
-                      )
-                    ) {
-                      return op;
-                    }
+            action.edit = makeReplaceOperationEdit(
+              document.uri,
+              selectedOp,
+              visit(parsedOp, {
+                OperationDefinition(op): OperationDefinitionNode {
+                  if (
+                    dir === "deleteRecord" ||
+                    op.variableDefinitions?.some(
+                      (v) => v.variable.name.value === "connections"
+                    )
+                  ) {
+                    return op;
+                  }
 
-                    return {
-                      ...op,
-                      variableDefinitions: makeConnectionsVariable(op),
-                    };
-                  },
-                  Field(node) {
-                    return runOnNodeAtPos(
-                      source,
-                      node,
-                      startPos,
-                      (n): FieldNode => {
-                        const connectionArg: ArgumentNode = {
-                          kind: "Argument",
-                          name: { kind: "Name", value: "connections" },
-                          value: {
-                            kind: "Variable",
-                            name: {
-                              value: "connections",
-                              kind: "Name",
-                            },
+                  return {
+                    ...op,
+                    variableDefinitions: makeConnectionsVariable(op),
+                  };
+                },
+                Field(node) {
+                  return runOnNodeAtPos(
+                    source,
+                    node,
+                    startPos,
+                    (n): FieldNode => {
+                      const connectionArg: ArgumentNode = {
+                        kind: "Argument",
+                        name: { kind: "Name", value: "connections" },
+                        value: {
+                          kind: "Variable",
+                          name: {
+                            value: "connections",
+                            kind: "Name",
                           },
-                        };
+                        },
+                      };
 
-                        return {
-                          ...n,
-                          directives: [
-                            ...(n.directives ?? []),
-                            {
-                              kind: "Directive",
-                              name: { kind: "Name", value: dir },
-                              arguments: dir.endsWith("Node")
+                      return {
+                        ...n,
+                        directives: [
+                          ...(n.directives ?? []),
+                          {
+                            kind: "Directive",
+                            name: { kind: "Name", value: dir },
+                            arguments:
+                              dir === "deleteRecord"
+                                ? []
+                                : ["appendNode", "prependNode"].includes(dir)
                                 ? [
                                     connectionArg,
                                     {
@@ -692,18 +719,17 @@ function initHoverProviders(_context: ExtensionContext) {
                                     },
                                   ]
                                 : [connectionArg],
-                            },
-                          ],
-                        };
-                      }
-                    );
-                  },
-                })
-              );
+                          },
+                        ],
+                      };
+                    }
+                  );
+                },
+              })
+            );
 
-              actions.push(action);
-            });
-          }
+            actions.push(action);
+          });
         }
       }
 
