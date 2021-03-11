@@ -2,13 +2,7 @@ import { InsertGraphQLComponentType } from "./extensionTypes";
 import { capitalize, uncapitalize } from "./extensionUtils";
 import { loadFullSchema } from "./loadSchema";
 
-import {
-  TextEditorEdit,
-  commands,
-  window,
-  Selection,
-  extensions,
-} from "vscode";
+import { TextEditorEdit, window, Selection } from "vscode";
 
 import {
   GraphQLSchema,
@@ -357,22 +351,7 @@ let make = () => {
 
   await textDocument.save();
 
-  const hasGraphiQLExtension = !!extensions.getExtension(
-    "gabrielnordeborn.vscode-graphiql-explorer"
-  );
-
   let edited: boolean | undefined = false;
-
-  if (hasGraphiQLExtension) {
-    const shouldEditInGraphiQL =
-      (await window.showQuickPick(["Yes", "No"], {
-        placeHolder: "Do you want to edit the added operation in GraphiQL?",
-      })) === "Yes";
-
-    if (shouldEditInGraphiQL) {
-      edited = await commands.executeCommand("vscode-graphiql-explorer.edit");
-    }
-  }
 
   if (edited) {
     await textDocument.save();

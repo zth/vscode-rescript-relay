@@ -6,8 +6,6 @@ Improve quality-of-life of using ReScriptRelay with VSCode. **This requires Reas
 
 Right now, you'll need to open VSCode in the _root where you've installed Relay_. For monorepos, this means you'll need to open the subfolder where your frontend project using Relay is located. This will hopefully be fixed in the future.
 
-> In addition to this extension, you're encouraged to also install `vscode-graphiql-explorer` for the best experience.
-
 This extension should _Just Work(tm)_, as it finds and uses your `relay.config.js`.
 
 ## Features
