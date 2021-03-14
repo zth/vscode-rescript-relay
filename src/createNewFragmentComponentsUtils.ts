@@ -86,7 +86,7 @@ export const addFragmentHere = ({
   schema,
   source,
 }: ExtractToFragmentConfig): null | {
-  addBeforeThisSelection: SelectionNode;
+  addBeforeThisSelection: SelectionNode | null;
   targetSelection: SelectionSetNode;
   parentTypeName: string;
 } => {
@@ -135,7 +135,7 @@ export const addFragmentHere = ({
       }) ?? null
     : null;
 
-  if (!targetSelection || !parentTypeName || !addBeforeThisSelection) {
+  if (!targetSelection || !parentTypeName) {
     return null;
   }
 

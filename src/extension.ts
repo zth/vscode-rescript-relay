@@ -73,6 +73,7 @@ import {
   GraphQLInterfaceType,
   OperationDefinitionNode,
   ArgumentNode,
+  FragmentDefinitionNode,
 } from "graphql";
 import {
   loadFullSchema,
@@ -387,7 +388,12 @@ function initHoverProviders(_context: ExtensionContext) {
         }
       }
 
-      if (parentT && parentT instanceof GraphQLObjectType) {
+      if (
+        parentT &&
+        (parentT instanceof GraphQLObjectType ||
+          parentT instanceof GraphQLInterfaceType ||
+          parentT instanceof GraphQLUnionType)
+      ) {
         const extractedFragment = extractToFragment({
           parsedOp,
           schema,
@@ -428,7 +434,9 @@ function initHoverProviders(_context: ExtensionContext) {
         if (canAddFragmentHere) {
           // Adding a new fragment component
           const addFragmentHereAction = new CodeAction(
-            `Add new fragment component here`,
+            `Add new fragment component ${
+              canAddFragmentHere.addBeforeThisSelection ? "here" : "to the root"
+            }`,
             CodeActionKind.Refactor
           );
 
@@ -985,7 +993,7 @@ function initCommands(context: ExtensionContext): void {
         doc: string,
         selection: Range,
         typeInfo: GraphQLTypeAtPos,
-        selectedNodeOrNodes: SelectionNode[] | SelectionNode,
+        selectedNodeOrNodes: SelectionNode[] | SelectionNode | null,
         targetSelection: SelectionSetNode
       ) => {
         const editor = window.activeTextEditor;
@@ -1038,10 +1046,56 @@ function initCommands(context: ExtensionContext): void {
         const source = new Source(selectedOperation.content);
         const operationAst = parse(source);
 
+        const newFragmentSelection: FragmentSpreadNode = {
+          kind: "FragmentSpread",
+          name: {
+            kind: "Name",
+            value: fragmentName,
+          },
+        };
+
         const updatedOperation = prettify(
           print(
             visit(operationAst, {
+              FragmentDefinition(node): FragmentDefinitionNode {
+                if (!selectedNodeOrNodes) {
+                  // No explicit selection, add to the root
+                  return {
+                    ...node,
+                    selectionSet: {
+                      ...node.selectionSet,
+                      selections: [
+                        ...node.selectionSet.selections,
+                        newFragmentSelection,
+                      ],
+                    },
+                  };
+                }
+
+                return node;
+              },
+              OperationDefinition(op): OperationDefinitionNode {
+                if (!selectedNodeOrNodes) {
+                  // No explicit selection, add to the root
+                  return {
+                    ...op,
+                    selectionSet: {
+                      ...op.selectionSet,
+                      selections: [
+                        ...op.selectionSet.selections,
+                        newFragmentSelection,
+                      ],
+                    },
+                  };
+                }
+
+                return op;
+              },
               SelectionSet(node) {
+                if (!selectedNodeOrNodes) {
+                  return;
+                }
+
                 const { loc } = node;
 
                 if (!loc) {
@@ -1052,14 +1106,6 @@ function initCommands(context: ExtensionContext): void {
                   loc.start === targetLoc.start &&
                   loc.end === targetLoc.end
                 ) {
-                  const newFragmentSelection: FragmentSpreadNode = {
-                    kind: "FragmentSpread",
-                    name: {
-                      kind: "Name",
-                      value: fragmentName,
-                    },
-                  };
-
                   return {
                     ...node,
                     selections: [
