@@ -6,6 +6,7 @@
 - Add step for selecting what type to expand when generating a query that uses the node interface/node top level field.
 - Add step for autogenerating any needed variables etc when codegenning mutations.
 - Add code actions for adding `@appendNode/prependNode/appendEdge/prependEdge/deleteRecord/deleteEdge`.
+- Fragments can now easily be added to the root operation/fragment itself, as well as on interfaces and unions.
 
 ## 0.3.6
 
