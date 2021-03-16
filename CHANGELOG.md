@@ -1,4 +1,6 @@
-## main
+## master
+
+## 0.4.0
 
 - Make it work with the officially released `rescript-relay` package.
 - Remove `vscode-graphiql-explorer` integration.
