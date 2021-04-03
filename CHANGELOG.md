@@ -1,5 +1,7 @@
 ## master
 
+- Add code action for adding variable to operation definition.
+
 ## 0.4.0
 
 - Make it work with the officially released `rescript-relay` package.
