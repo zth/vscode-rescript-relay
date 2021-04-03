@@ -130,8 +130,12 @@ export function makeFieldSelection(
 }
 
 export function makeFirstFieldSelection(
-  type: GraphQLObjectType | GraphQLInterfaceType
+  type: GraphQLObjectType | GraphQLInterfaceType | GraphQLUnionType
 ): FieldNode[] {
+  if (type instanceof GraphQLUnionType) {
+    return [makeFieldSelection("__typename")];
+  }
+
   const firstField = getFirstField(type);
   const fieldType = getNamedType(firstField.type);
 
@@ -139,14 +143,10 @@ export function makeFirstFieldSelection(
 
   if (
     fieldType instanceof GraphQLObjectType ||
-    fieldType instanceof GraphQLInterfaceType ||
-    fieldType instanceof GraphQLUnionType
+    fieldType instanceof GraphQLInterfaceType
   ) {
-    if (
-      fieldType instanceof GraphQLInterfaceType ||
-      fieldType instanceof GraphQLUnionType
-    ) {
-      // Always include __typename for interfaces and unions
+    if (fieldType instanceof GraphQLInterfaceType) {
+      // Always include __typename for interfaces
       fieldNodes.push(makeFieldSelection("__typename"));
     }
 
@@ -346,7 +346,8 @@ export async function makeFragment(
   if (
     onType &&
     (onType instanceof GraphQLObjectType ||
-      onType instanceof GraphQLInterfaceType)
+      onType instanceof GraphQLInterfaceType ||
+      onType instanceof GraphQLUnionType)
   ) {
     const newFragment = prettify(
       print(
