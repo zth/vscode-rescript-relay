@@ -348,24 +348,22 @@ function initHoverProviders(_context: ExtensionContext) {
       const actions: (CodeAction | Command)[] = [];
 
       if (firstDef && firstDef.kind === "OperationDefinition") {
-        if (state.kind === "Variable" && state.prevState) {
-          const inputType = typeInfo.inputType
-            ? typeInfo.inputType.toString()
-            : undefined;
-          const variableName = state.name;
+        window.showInformationMessage("#1");
+        if (
+          state.kind === "Variable" &&
+          state.name &&
+          !nodeHasVariable(firstDef, state.name)
+        ) {
+          const argDef = typeInfo.argDef;
 
-          if (
-            inputType &&
-            variableName &&
-            !nodeHasVariable(firstDef, variableName)
-          ) {
+          if (argDef) {
             const variableDefinitionNode = makeVariableDefinitionNode(
-              variableName,
-              inputType
+              state.name,
+              argDef.type.toString()
             );
 
             const addToOperationVariables = new CodeAction(
-              `Add "$${name}" to operation variables`,
+              `Add "$${state.name}" to operation variables`,
               CodeActionKind.RefactorRewrite
             );
 
@@ -1193,11 +1191,15 @@ let make = (~${uncapitalize(typeInfo.parentTypeName)}) => {
 
         const msg = `"${newComponentName}.res" was created with your new fragment.`;
 
-        window.showInformationMessage(msg, "Open file").then((m) => {
-          if (m) {
-            window.showTextDocument(newDoc);
-          }
-        });
+        if (shouldOpenFileDirectly) {
+          window.showTextDocument(newDoc);
+        } else {
+          window.showInformationMessage(msg, "Open file").then((m) => {
+            if (m) {
+              window.showTextDocument(newDoc);
+            }
+          });
+        }
 
         editor.selection = new Selection(
           new Position(
