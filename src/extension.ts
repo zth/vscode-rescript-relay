@@ -348,7 +348,6 @@ function initHoverProviders(_context: ExtensionContext) {
       const actions: (CodeAction | Command)[] = [];
 
       if (firstDef && firstDef.kind === "OperationDefinition") {
-        window.showInformationMessage("#1");
         if (
           state.kind === "Variable" &&
           state.name &&
