@@ -1,7 +1,7 @@
 {
   "name": "vscode-rescript-relay",
   "description": "Improve quality-of-life of using ReScriptRelay with VSCode.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "main": "./build/extension.js",
   "engines": {
     "vscode": "^1.52.0"
