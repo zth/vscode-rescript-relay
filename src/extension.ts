@@ -22,6 +22,7 @@ import {
   Selection,
   StatusBarAlignment,
   Diagnostic,
+  Disposable as VSCodeDisposable,
 } from "vscode";
 
 import {
@@ -1420,6 +1421,20 @@ export async function activate(context: ExtensionContext) {
 
     let childProcess: cp.ChildProcessWithoutNullStreams | undefined;
 
+    const killCompiler = () => {
+      if (childProcess != null) {
+        const res = childProcess.kill("SIGINT");
+
+        if (res) {
+          childProcess = undefined;
+        }
+
+        return res;
+      }
+
+      return false;
+    };
+
     const item = window.createStatusBarItem(StatusBarAlignment.Right);
 
     function setStatusBarItemText(text: string) {
@@ -1460,6 +1475,8 @@ export async function activate(context: ExtensionContext) {
     context.subscriptions.push(
       relayCompilerOutputChannel,
       commands.registerCommand("vscode-rescript-relay.start-compiler", () => {
+        killCompiler();
+
         childProcess = cp.spawn(
           // TODO: Do a more robust solution for the PATH that also works with Windows
           `PATH=$PATH:./node_modules/.bin ${projectType.type}-compiler`,
@@ -1474,7 +1491,7 @@ export async function activate(context: ExtensionContext) {
         let hasHadError: boolean = false;
         let statusBarMessageTimeout: any = null;
 
-        if (childProcess.pid) {
+        if (childProcess.pid != null) {
           childProcess.stdout.on("data", (data: Buffer) => {
             const str = data.toString();
 
@@ -1527,7 +1544,7 @@ export async function activate(context: ExtensionContext) {
             window.showInformationMessage(
               "The Relay compiler has been shut down."
             );
-            childProcess = undefined;
+            killCompiler();
             setStatusBarItemToStart();
           });
 
@@ -1545,15 +1562,15 @@ export async function activate(context: ExtensionContext) {
 
           setStatusBarItemToStop();
         }
+
+        return new VSCodeDisposable(killCompiler);
       }),
       commands.registerCommand("vscode-rescript-relay.stop-compiler", () => {
-        if (childProcess && childProcess.pid && childProcess.kill()) {
+        if (killCompiler()) {
           setStatusBarItemToStart();
         } else {
           window.showWarningMessage("Could not stop the Relay compiler.");
         }
-
-        childProcess = undefined;
       })
     );
 
@@ -1570,6 +1587,8 @@ export async function activate(context: ExtensionContext) {
         },
         async () => {
           await initClient();
+          killCompiler();
+
           await commands.executeCommand("vscode-rescript-relay.stop-compiler");
           await commands.executeCommand("vscode-rescript-relay.start-compiler");
         }
