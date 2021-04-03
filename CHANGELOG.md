@@ -1,6 +1,7 @@
 ## master
 
 - Add code action for adding variable to operation definition.
+- Add explicit extra stop button when the Relay compiler has an error.
 
 ## 0.4.0
 

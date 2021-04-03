@@ -23,6 +23,7 @@ import {
   StatusBarAlignment,
   Diagnostic,
   Disposable as VSCodeDisposable,
+  StatusBarItem,
 } from "vscode";
 
 import {
@@ -1431,9 +1432,12 @@ export async function activate(context: ExtensionContext) {
       return false;
     };
 
-    const item = window.createStatusBarItem(StatusBarAlignment.Right);
+    const mainItem = window.createStatusBarItem(StatusBarAlignment.Right);
+    const extraItemWhenHasError = window.createStatusBarItem(
+      StatusBarAlignment.Right
+    );
 
-    function setStatusBarItemText(text: string) {
+    function setStatusBarItemText(item: StatusBarItem, text: string) {
       const lastText = item.text;
       item.text = text;
 
@@ -1442,31 +1446,40 @@ export async function activate(context: ExtensionContext) {
       };
     }
 
-    function setStatusBarItemToStart() {
-      setStatusBarItemText("$(debug-start) Start Relay compiler");
+    function setStatusBarItemToStart(item: StatusBarItem) {
+      setStatusBarItemText(item, "$(debug-start) Start Relay compiler");
       item.command = "vscode-rescript-relay.start-compiler";
     }
 
-    function setStatusBarItemToStop() {
-      setStatusBarItemText("$(debug-stop) Relay Compiler running");
+    function setStatusBarItemToStop(item: StatusBarItem) {
+      setStatusBarItemText(item, "$(debug-stop) Relay Compiler running");
       item.command = "vscode-rescript-relay.stop-compiler";
       item.tooltip = "Click to stop";
     }
 
-    function setStatusBarItemToWroteFiles() {
-      setStatusBarItemText("$(debug-stop) $(check) Relay Compiler recompiled");
+    function setStatusBarItemToStopExplicit(item: StatusBarItem) {
+      setStatusBarItemText(item, "$(debug-stop) Stop Relay compiler");
+      item.command = "vscode-rescript-relay.stop-compiler";
+      item.tooltip = "Click to stop";
+    }
+
+    function setStatusBarItemToWroteFiles(item: StatusBarItem) {
+      setStatusBarItemText(
+        item,
+        "$(debug-stop) $(check) Relay Compiler recompiled"
+      );
       item.command = "vscode-rescript-relay.show-relay-compiler-output";
       item.tooltip = "Click to see full output";
     }
 
-    function setStatusBarItemToError() {
-      setStatusBarItemText("$(error) Error!");
+    function setStatusBarItemToError(item: StatusBarItem) {
+      setStatusBarItemText(item, "$(error) Relay error!");
       item.command = "vscode-rescript-relay.show-relay-compiler-output";
       item.tooltip = "Click to see full output";
     }
 
-    setStatusBarItemToStart();
-    item.show();
+    setStatusBarItemToStart(mainItem);
+    mainItem.show();
 
     context.subscriptions.push(
       relayCompilerOutputChannel,
@@ -1493,9 +1506,10 @@ export async function activate(context: ExtensionContext) {
 
             if (/(Created|Updated|Deleted|Unchanged):/g.test(str)) {
               if (hasHadError) {
-                setStatusBarItemText("$(check) Back to normal");
+                setStatusBarItemText(mainItem, "$(check) Back to normal");
+                extraItemWhenHasError.hide();
                 setTimeout(() => {
-                  setStatusBarItemToStop();
+                  setStatusBarItemToStop(mainItem);
                 }, 3000);
                 hasHadError = false;
               }
@@ -1503,9 +1517,9 @@ export async function activate(context: ExtensionContext) {
               // We don't want to alert that things changed if they didn't
               if (/(Created|Updated|Deleted):/g.test(str)) {
                 clearTimeout(statusBarMessageTimeout);
-                setStatusBarItemToWroteFiles();
+                setStatusBarItemToWroteFiles(mainItem);
                 statusBarMessageTimeout = setTimeout(() => {
-                  setStatusBarItemToStop();
+                  setStatusBarItemToStop(mainItem);
                 }, 3000);
               }
             }
@@ -1521,7 +1535,10 @@ export async function activate(context: ExtensionContext) {
               );
 
               if (error && error[0]) {
-                setStatusBarItemToError();
+                setStatusBarItemToError(mainItem);
+                setStatusBarItemToStopExplicit(extraItemWhenHasError);
+
+                extraItemWhenHasError.show();
 
                 // Reset error buffer
                 errorBuffer = undefined;
@@ -1541,7 +1558,7 @@ export async function activate(context: ExtensionContext) {
               "The Relay compiler has been shut down."
             );
             killCompiler();
-            setStatusBarItemToStart();
+            setStatusBarItemToStart(mainItem);
           });
 
           childProcess.stderr.on("error", (e) => {
@@ -1553,17 +1570,18 @@ export async function activate(context: ExtensionContext) {
               "The Relay compiler has been shut down."
             );
             childProcess = undefined;
-            setStatusBarItemToStart();
+            setStatusBarItemToStart(mainItem);
           });
 
-          setStatusBarItemToStop();
+          setStatusBarItemToStop(mainItem);
         }
 
         return new VSCodeDisposable(killCompiler);
       }),
       commands.registerCommand("vscode-rescript-relay.stop-compiler", () => {
         if (killCompiler()) {
-          setStatusBarItemToStart();
+          setStatusBarItemToStart(mainItem);
+          extraItemWhenHasError.hide();
         } else {
           window.showWarningMessage("Could not stop the Relay compiler.");
         }
