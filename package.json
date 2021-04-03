@@ -16,7 +16,7 @@
   "author": "Gabriel Nordeborn <gabbe.nord@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zth/vscode-rescript-relay"
+    "url": "https://github.com/zth/rescript-relay"
   },
   "publisher": "GabrielNordeborn",
   "activationEvents": [

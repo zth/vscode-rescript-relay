@@ -1,6 +1,8 @@
 # vscode-rescript-relay
 
-Improve quality-of-life of using ReScriptRelay with VSCode. **This requires ReasonRelay of version >= 0.13.0 and that you only use ReScript syntax with ReasonRelay.**
+Improve quality-of-life of using RescriptRelay with VSCode. **This requires RescriptRelay of version >= 0.13.0 and that you only use ReScript syntax with RescriptRelay.**
+
+Please report any issues you might have to the main [RescriptRelay issue tracker](https://github.com/zth/rescript-relay/issues).
 
 ## Setup
 
@@ -53,9 +55,13 @@ Place your cursor on any field name of a field that's a union or interface, acti
 
 With the cursor in a fragment definition, activate code actions and select `Make fragment refetchable`. This will add the `@refetchable` directive to the fragment, with a suitable `queryName` preconfigured, making it possible to refetch the fragment.
 
+#### Add variable to operation definition
+
+In a query, mutation or subrscription, add a variable to any argument for a field, like `myField @include(if: $showMyField)`. Put your cursor on the variable name `$showMyField` and activate code actions. Select `Add variable to operation`. The variable is added to the operation, like `mutation SomeMutation($text: String!)`.
+
 #### Add variable to `@argumentDefinitions`
 
-In a fragment, add a variable to any argument for a field, like `myField @include(if: $showMyField)`. Put your cursor on the variable name `$showMyField` and activate code actions. Select `Add variable to @argumentDefinitions`. The variable is added to the fragments `@argumentDefinitions`, like `fragment SomeFragment_user on User @argumentDefinitions(showMyField: {type: "Boolean" })`.
+In a fragment, add a variable to any argument for a field, like `myField @include(if: $showMyField)`. Put your cursor on the variable name `$showMyField` and activate code actions. Select `Add variable to @argumentDefinitions`. The variable is added to the fragment's `@argumentDefinitions`, like `fragment SomeFragment_user on User @argumentDefinitions(showMyField: {type: "Boolean" })`.
 
 #### Make fragment plural
 
@@ -70,6 +76,6 @@ With the cursor in a fragment definition, activate code actions and select `Make
 Here's a list of features (in no particular order of importance or scope size) that I'd like to add support for at some point:
 
 - "Diagnostics" like notifying the user about custom scalars that don't have proper definition in `relay.config.js`
-- Autosetup ReScriptRelay in a project via VSCode (install packages, setup `bsconfig.json`, add needed files, etc)
+- Autosetup RescriptRelay in a project via VSCode (install packages, setup `bsconfig.json`, add needed files, etc)
 - Code action for inserting the `@connection` directive
 - Tie the extension together with the docs much more. Make it easy to open the relevant part of the docs depending on what you're doing.
