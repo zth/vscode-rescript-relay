@@ -1193,16 +1193,11 @@ let make = (~${uncapitalize(typeInfo.parentTypeName)}) => {
 
         const msg = `"${newComponentName}.res" was created with your new fragment.`;
 
-        if (shouldOpenFileDirectly) {
-          window.showInformationMessage(msg);
-          window.showTextDocument(newDoc);
-        } else {
-          window.showInformationMessage(msg, "Open file").then((m) => {
-            if (m) {
-              window.showTextDocument(newDoc);
-            }
-          });
-        }
+        window.showInformationMessage(msg, "Open file").then((m) => {
+          if (m) {
+            window.showTextDocument(newDoc);
+          }
+        });
 
         editor.selection = new Selection(
           new Position(
