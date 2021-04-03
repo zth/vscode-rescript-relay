@@ -1567,6 +1567,8 @@ export async function activate(context: ExtensionContext) {
         } else {
           window.showWarningMessage("Could not stop the Relay compiler.");
         }
+
+        return new VSCodeDisposable(killCompiler);
       })
     );
 
