@@ -1,6 +1,6 @@
 {
   "name": "vscode-rescript-relay",
-  "description": "Improve quality-of-life of using ReScriptRelay with VSCode.",
+  "description": "Improve quality-of-life of using RescriptRelay with VSCode.",
   "version": "0.5.0",
   "main": "./build/extension.js",
   "engines": {
@@ -33,12 +33,12 @@
   "license": "MIT",
   "contributes": {
     "configuration": {
-      "title": "ReScriptRelay",
+      "title": "RescriptRelay",
       "properties": {
         "rescript-relay.autoStartRelayCompiler": {
           "type": "boolean",
           "default": true,
-          "description": "Autostart the Relay compiler when in a ReScriptRelay project?"
+          "description": "Autostart the Relay compiler when in a RescriptRelay project?"
         }
       }
     },
@@ -46,37 +46,43 @@
       {
         "command": "vscode-rescript-relay.add-fragment",
         "title": "Add fragment",
-        "category": "ReScriptRelay",
+        "category": "RescriptRelay",
         "when": "editorLangId == rescript"
       },
       {
         "command": "vscode-rescript-relay.add-query",
         "title": "Add query",
-        "category": "ReScriptRelay",
+        "category": "RescriptRelay",
         "when": "editorLangId == rescript"
       },
       {
         "command": "vscode-rescript-relay.add-mutation",
         "title": "Add mutation",
-        "category": "ReScriptRelay",
+        "category": "RescriptRelay",
         "when": "editorLangId == rescript"
       },
       {
         "command": "vscode-rescript-relay.add-subscription",
         "title": "Add subscription",
-        "category": "ReScriptRelay",
+        "category": "RescriptRelay",
         "when": "editorLangId == rescript"
       },
       {
         "command": "vscode-rescript-relay.wrap-in-suspense-boundary",
         "title": "Wrap in suspense boundary",
-        "category": "ReScriptRelay",
+        "category": "RescriptRelay",
+        "when": "editorLangId == rescript"
+      },
+      {
+        "command": "vscode-rescript-relay.add-lazy-variant-of-component",
+        "title": "Create lazy loaded version of component",
+        "category": "RescriptRelay",
         "when": "editorLangId == rescript"
       },
       {
         "command": "vscode-rescript-relay.wrap-in-suspense-list",
         "title": "Wrap in suspense list",
-        "category": "ReScriptRelay",
+        "category": "RescriptRelay",
         "when": "editorLangId == rescript"
       }
     ],

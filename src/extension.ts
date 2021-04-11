@@ -1260,6 +1260,49 @@ let make = (~${uncapitalize(typeInfo.parentTypeName)}) => {
 
         wrapInJsx(start, end, start.length);
       }
+    ),
+    commands.registerCommand(
+      "vscode-rescript-relay.add-lazy-variant-of-component",
+      async () => {
+        const editor = window.activeTextEditor;
+
+        if (!editor) {
+          return;
+        }
+
+        const componentName = path.basename(editor.document.uri.path, ".res");
+
+        const lazyComponentName = `${componentName}Lazy`;
+
+        const currentFilePath = editor.document.uri.path;
+        const thisFileName = path.basename(currentFilePath);
+
+        const newFilePath = editor.document.uri.with({
+          path: `${currentFilePath.slice(
+            0,
+            currentFilePath.length - thisFileName.length
+          )}${lazyComponentName}.res`,
+        });
+
+        fs.writeFileSync(
+          newFilePath.fsPath,
+          `include %relay.lazyComponent(${componentName}.make)`
+        );
+
+        const newDoc = await workspace.openTextDocument(newFilePath);
+        await newDoc.save();
+
+        window
+          .showInformationMessage(
+            `Lazy version of '${componentName}' added as '${lazyComponentName}.res'.`,
+            "Open file"
+          )
+          .then((m) => {
+            if (m) {
+              window.showTextDocument(newDoc);
+            }
+          });
+      }
     )
   );
 }
@@ -1344,7 +1387,7 @@ export async function activate(context: ExtensionContext) {
   }
 
   let outputChannel: OutputChannel = window.createOutputChannel(
-    "ReScriptRelay GraphQL Language Server"
+    "RescriptRelay GraphQL Language Server"
   );
 
   let client: LanguageClient | undefined;
