@@ -1,5 +1,11 @@
 ## master
 
+## 0.5.1
+
+- Add command to create lazy loaded version of current component.
+
+## 0.5.0
+
 - Add code action for adding variable to operation definition.
 - Add explicit extra stop button when the Relay compiler has an error.
 
