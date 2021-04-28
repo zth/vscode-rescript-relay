@@ -3,12 +3,14 @@ import { Range, Position } from "graphql-language-service-utils";
 import { CachedContent } from "graphql-language-service-types";
 import { extractGraphQLSources } from "./findGraphQLSources";
 import { createGraphQLConfigSync } from "./graphqlConfig";
+import { getRelayRoot } from "./loadSchema";
 
 (async () => {
   try {
+    console.log("startServer");
     await startServer({
       method: "node",
-      config: createGraphQLConfigSync(process.env.ROOT_DIR || "", true),
+      config: createGraphQLConfigSync(getRelayRoot()!, true),
       parser: (doc: string) => {
         const sources = extractGraphQLSources("rescript", doc);
 

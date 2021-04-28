@@ -1,4 +1,4 @@
-import { GraphQLConfig, loadConfig, loadConfigSync } from "graphql-config";
+import { ConfigNotFoundError, GraphQLConfig, loadConfig, loadConfigSync } from "graphql-config";
 import {
   AddInternalIDsExtension,
   RelayDirectivesExtension,
@@ -21,38 +21,52 @@ export async function createGraphQLConfig(
   workspaceBaseDir: string,
   includeValidationRules?: boolean
 ): Promise<GraphQLConfig | undefined> {
-  const config = await loadConfig(makeLoadConfig(workspaceBaseDir));
+  try {
+    const config = await loadConfig(makeLoadConfig(workspaceBaseDir));
 
-  if (!config) {
-    return;
+    if (!config) {
+      return;
+    }
+
+    if (includeValidationRules) {
+      const project = config.getProject();
+      project.extensions["customValidationRules"] = path.resolve(
+        path.join(__dirname, "../build/validationRules.js")
+      );
+    }
+    return config;
+
+  } catch (error) {
+    if (!(error instanceof ConfigNotFoundError)) {
+      console.error("unexpected error while creating GraphQL config");
+    };
+    return undefined;
   }
-
-  if (includeValidationRules) {
-    const project = config.getProject();
-    project.extensions["customValidationRules"] = path.resolve(
-      path.join(__dirname, "../build/validationRules.js")
-    );
-  }
-
-  return config;
 }
 
 export function createGraphQLConfigSync(
   workspaceBaseDir: string,
   includeValidationRules?: boolean
 ): GraphQLConfig | undefined {
-  const config = loadConfigSync(makeLoadConfig(workspaceBaseDir));
+  try {
+    const config = loadConfigSync(makeLoadConfig(workspaceBaseDir));
 
-  if (!config) {
-    return;
+    if (!config) {
+      return;
+    }
+
+    if (includeValidationRules) {
+      const project = config.getProject();
+      project.extensions["customValidationRules"] = path.resolve(
+        path.join(__dirname, "../build/validationRules.js")
+      );
+    }
+    return config;
+
+  } catch (error) {
+    if (!(error instanceof ConfigNotFoundError)) {
+      console.error("unexpected error while creating GraphQL config");
+    };
+    return undefined;
   }
-
-  if (includeValidationRules) {
-    const project = config.getProject();
-    project.extensions["customValidationRules"] = path.resolve(
-      path.join(__dirname, "../build/validationRules.js")
-    );
-  }
-
-  return config;
 }

@@ -79,7 +79,7 @@ import {
 } from "graphql";
 import {
   loadFullSchema,
-  getCurrentWorkspaceRoot,
+  getRelayRoot,
   cacheControl,
   loadRelayConfig,
   loadGraphQLConfig,
@@ -1312,9 +1312,9 @@ function initLanguageServer(
   outputChannel: OutputChannel
 ): { client: LanguageClient; disposableClient: Disposable } {
   const serverModule = context.asAbsolutePath(path.join("build", "server.js"));
-  const currentWorkspacePath = getCurrentWorkspaceRoot();
+  const relayRoot = getRelayRoot();
 
-  if (!currentWorkspacePath) {
+  if (!relayRoot) {
     throw new Error("Not inside a workspace.");
   }
 
@@ -1323,14 +1323,14 @@ function initLanguageServer(
       module: serverModule,
       transport: TransportKind.ipc,
       options: {
-        env: { ROOT_DIR: currentWorkspacePath },
+        env: { ROOT_DIR: relayRoot },
       },
     },
     debug: {
       module: serverModule,
       transport: TransportKind.ipc,
       options: {
-        env: { ROOT_DIR: currentWorkspacePath },
+        env: { ROOT_DIR: relayRoot },
       },
     },
   };
@@ -1381,8 +1381,8 @@ function initLanguageServer(
 export async function activate(context: ExtensionContext) {
   const projectType = await isReScriptRelayProject();
 
-  if (!projectType) {
-    window.showErrorMessage("not rescript relay project");
+    if (!projectType) {
+    window.showErrorMessage("Not a Rescript Relay project");
     return;
   }
 
@@ -1528,10 +1528,14 @@ export async function activate(context: ExtensionContext) {
       relayCompilerOutputChannel,
       commands.registerCommand("vscode-rescript-relay.start-compiler", () => {
         killCompiler();
+        let relayRoot = getRelayRoot();
+        if (!relayRoot) {
+          return;
+        }
 
         childProcess = cp.spawn(
           // TODO: Do a more robust solution for the PATH that also works with Windows
-          `PATH=$PATH:./node_modules/.bin ${projectType.type}-compiler`,
+          `PATH=$PATH:${relayRoot}/node_modules/.bin ${projectType.type}-compiler`,
           ["--watch"],
           {
             cwd: graphqlConfig.dirpath,

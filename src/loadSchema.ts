@@ -51,17 +51,29 @@ export function getCurrentWorkspaceRoot(): string | undefined {
   }
 }
 
+export function getRelayRoot(): string | undefined {
+  const workspaceRoot = getCurrentWorkspaceRoot();
+  const pathToRelay = workspace.getConfiguration("rescript-relay").get("pathToRelayProject");
+
+  if (!workspaceRoot || !pathToRelay || typeof pathToRelay !== "string") {
+    return;
+  }
+  else {
+    return path.join(workspaceRoot, pathToRelay);
+  }
+}
+
 let loadSchemaCachePromise: Promise<SchemaCache | undefined> | undefined;
 
 export function getSchemaCacheForWorkspace(
-  workspaceBaseDir: string
+  relayBaseDir: string
 ): Promise<SchemaCache | undefined> {
   if (loadSchemaCachePromise) {
     return loadSchemaCachePromise;
   }
 
   loadSchemaCachePromise = new Promise(async (resolve) => {
-    const fromCache = cache[workspaceBaseDir];
+    const fromCache = cache[relayBaseDir];
 
     if (fromCache) {
       loadSchemaCachePromise = undefined;
@@ -71,17 +83,22 @@ export function getSchemaCacheForWorkspace(
     let schema: GraphQLSchema | undefined;
     let config: GraphQLConfig | undefined;
 
-    config = await createGraphQLConfig(workspaceBaseDir);
+    config = await createGraphQLConfig(relayBaseDir);
 
     if (!config) {
-      return;
+      return resolve(undefined);
     }
 
-    schema = await config.getProject().getSchema();
+    try {
+      schema = await config.getProject().getSchema();
+    } catch (error) {
+      console.error("error while getting project schema", error);
+      return resolve(undefined);
+    }
 
     if (!config || !schema) {
       loadSchemaCachePromise = undefined;
-      return;
+      return resolve(undefined);
     }
 
     const entry: SchemaCache = {
@@ -89,34 +106,34 @@ export function getSchemaCacheForWorkspace(
       schema,
     };
 
-    cache[workspaceBaseDir] = entry;
+    cache[relayBaseDir] = entry;
     loadSchemaCachePromise = undefined;
 
-    resolve(entry);
+    return resolve(entry);
   });
 
   return loadSchemaCachePromise;
 }
 
 export async function loadFullSchema(): Promise<GraphQLSchema | undefined> {
-  const workspaceRoot = getCurrentWorkspaceRoot();
+  const relayRoot = getRelayRoot();
 
-  if (!workspaceRoot) {
+  if (!relayRoot) {
     return;
   }
 
-  const cacheEntry = await getSchemaCacheForWorkspace(workspaceRoot);
+  const cacheEntry = await getSchemaCacheForWorkspace(relayRoot);
   return cacheEntry ? cacheEntry.schema : undefined;
 }
 
 export async function loadGraphQLConfig(): Promise<GraphQLConfig | undefined> {
-  const workspaceRoot = getCurrentWorkspaceRoot();
+  const relayRoot = getRelayRoot();
 
-  if (!workspaceRoot) {
+  if (!relayRoot) {
     return;
   }
 
-  const cacheEntry = await getSchemaCacheForWorkspace(workspaceRoot);
+  const cacheEntry = await getSchemaCacheForWorkspace(relayRoot);
   return cacheEntry ? cacheEntry.config : undefined;
 }
 
@@ -146,6 +163,7 @@ export async function loadRelayConfig(): Promise<RelayConfig | undefined> {
         ),
       };
     } catch (e) {
+      console.error("error while loading relay config", e);
       return;
     }
 
@@ -196,8 +214,11 @@ export async function isReScriptRelayProject(): Promise<{
           }
         }
       }
-    } catch {}
+    } catch (error) {
+      console.error("error while checking if project is a valid rescript relay project", error);
+    }
   }
+  window.showErrorMessage("Could not locate relay.config.js, if it's not in the root folder, be sure to configure `settings.rescript-relay.pathToRelayProject`");
 
   return null;
 }

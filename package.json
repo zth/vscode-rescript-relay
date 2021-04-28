@@ -39,6 +39,11 @@
           "type": "boolean",
           "default": true,
           "description": "Autostart the Relay compiler when in a RescriptRelay project?"
+        },
+        "rescript-relay.pathToRelayProject": {
+          "type": "string",
+          "default": ".",
+          "description": "Path to the folder where relay.config.js is"
         }
       }
     },
