@@ -172,6 +172,7 @@ export async function isReScriptRelayProject(): Promise<{
       if (pkgJson) {
         const deps = [
           ...Object.keys(pkgJson.dependencies || {}),
+          ...Object.keys(pkgJson.devDependencies || {}),
           ...Object.keys(pkgJson.peerDependencies || {}),
         ];
         for (const d of deps) {
@@ -182,6 +183,7 @@ export async function isReScriptRelayProject(): Promise<{
           if (d === "reason-relay") {
             const version: string = {
               ...pkgJson.dependencies,
+              ...pkgJson.devDependencies,
               ...pkgJson.peerDependencies,
             }["reason-relay"];
 
