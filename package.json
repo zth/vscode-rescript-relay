@@ -120,12 +120,12 @@
   },
   "dependencies": {
     "graphql": "^14.6.0",
-    "graphql-config": "3.2.0",
-    "graphql-language-service-interface": "2.8.2",
-    "graphql-language-service-parser": "1.9.0",
-    "graphql-language-service-server": "2.6.2",
-    "graphql-language-service-types": "1.8.1",
-    "graphql-language-service-utils": "2.5.1",
+    "graphql-config": "3.3.0",
+    "graphql-language-service-interface": "2.8.4",
+    "graphql-language-service-parser": "1.9.2",
+    "graphql-language-service-server": "2.6.3",
+    "graphql-language-service-types": "1.8.2",
+    "graphql-language-service-utils": "2.5.3",
     "kind-of": "6.0.3",
     "locate-character": "2.0.5",
     "pascal-case": "3.1.2",
@@ -136,6 +136,7 @@
     "vscode-languageserver-protocol": "3.16.0"
   },
   "devDependencies": {
+    "@types/codemirror": "^5.60.0",
     "@types/jest": "26.0.20",
     "@types/node": "14.14.33",
     "@types/prettier": "2.2.2",
@@ -143,5 +144,13 @@
     "jest": "26.6.3",
     "ts-jest": "26.5.3",
     "vscode": "1.1.37"
+  },
+  "resolutions": {
+    "graphql-config": "3.3.0",
+    "graphql-language-service-interface": "2.8.4",
+    "graphql-language-service-parser": "1.9.2",
+    "graphql-language-service-server": "2.6.3",
+    "graphql-language-service-types": "1.8.2",
+    "graphql-language-service-utils": "2.5.3"
   }
 }
