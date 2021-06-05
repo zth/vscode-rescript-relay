@@ -30,6 +30,7 @@ export const cacheControl = {
     };
 
     cache[workspaceBaseDir] = entry;
+    loadSchemaCachePromise = undefined;
 
     return true;
   },

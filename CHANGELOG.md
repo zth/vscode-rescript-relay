@@ -1,5 +1,9 @@
 ## master
 
+- Schema changes are now also automatically picked up for code actions.
+- `rescript-relay` can now be detected in `peerDependencies` as well (thanks @mellson).
+- Remove a few lingering references to ReasonRelay.
+
 ## 0.5.1
 
 - Add command to create lazy loaded version of current component.
