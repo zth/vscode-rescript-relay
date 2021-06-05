@@ -446,7 +446,7 @@ let make = () => {
         insert += `\n\n
 @react.component
 let make = () => {
-  let environment = ReasonRelay.useEnvironmentFromContext()
+  let environment = RescriptRelay.useEnvironmentFromContext()
 
   React.useEffect0(() => {
     let subscription = ${rModuleName}.subscribe(
@@ -455,7 +455,7 @@ let make = () => {
       (),
     )
 
-    Some(() => ReasonRelay.Disposable.dispose(subscription))
+    Some(() => RescriptRelay.Disposable.dispose(subscription))
   })
 
   React.null

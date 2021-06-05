@@ -88,7 +88,7 @@ let make = (~checked, ~todoItem as todoItemRef, ~todosConnectionId) => {
               clientMutationId: None,
               id: todoItem.id,
             },
-            connections: [todosConnectionId->ReasonRelay.dataIdToString],
+            connections: [todosConnectionId->RescriptRelay.dataIdToString],
           },
           ~optimisticResponse={
             deleteTodoItem: Some({deletedTodoItemId: Some(todoItem.id)}),
