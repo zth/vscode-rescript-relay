@@ -1,5 +1,7 @@
 ## master
 
+## 0.5.2
+
 - Schema changes are now also automatically picked up for code actions.
 - `rescript-relay` can now be detected in `peerDependencies` as well (thanks @mellson).
 - Remove a few lingering references to ReasonRelay.
