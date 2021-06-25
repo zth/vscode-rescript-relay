@@ -1,5 +1,7 @@
 ## master
 
+## 0.5.3
+
 - Fix ghost errors caused by the extension adding erronous GraphQL to the schema (invalid wrt the spec, but valid in Relay).
 
 ## 0.5.2
