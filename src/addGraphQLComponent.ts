@@ -21,6 +21,8 @@ import {
   makeOperation,
   makeVariableDefinitionNode,
 } from "./graphqlUtils";
+import { getPreferredFragmentPropName } from "./utils";
+import { pascalCase } from "pascal-case";
 
 async function getValidModuleName(
   docText: string,
@@ -113,13 +115,15 @@ export async function addGraphQLComponent(type: InsertGraphQLComponentType) {
         return;
       }
 
-      const rModuleName = await getValidModuleName(
-        docText,
-        `${onType}Fragment`
-      );
+      const rModuleName = getPreferredFragmentPropName(onType);
+      const fragmentName = `${capitalize(moduleName)}_${uncapitalize(
+        rModuleName
+      )}`;
+      const targetModuleName = `${pascalCase(rModuleName)}Fragment`;
+      const propName = uncapitalize(rModuleName);
 
-      insert += `module ${rModuleName} = %relay(\`\n  ${await makeFragment(
-        `${moduleName}_${uncapitalize(rModuleName.replace("Fragment", ""))}`,
+      insert += `module ${targetModuleName} = %relay(\`\n  ${await makeFragment(
+        fragmentName,
         onType
       )}\n\`\n)`;
 
@@ -131,8 +135,8 @@ export async function addGraphQLComponent(type: InsertGraphQLComponentType) {
       if (shouldInsertComponentBoilerplate) {
         insert += `\n\n
 @react.component
-let make = (~${uncapitalize(onType)}) => {
-  let ${uncapitalize(onType)} = ${rModuleName}.use(${uncapitalize(onType)})
+let make = (~${propName}) => {
+  let ${propName} = ${targetModuleName}.use(${propName})
 
   React.null
 }`;

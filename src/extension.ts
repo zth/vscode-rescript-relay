@@ -104,6 +104,7 @@ import {
   addFragmentHere,
   extractToFragment,
 } from "./createNewFragmentComponentsUtils";
+import { getPreferredFragmentPropName } from "./utils";
 
 function getModuleNameFromFile(uri: Uri): string {
   return capitalize(path.basename(uri.path, ".res"));
@@ -1038,8 +1039,10 @@ function initCommands(context: ExtensionContext): void {
             placeHolder: "Do you want to open the new file directly?",
           })) === "Yes";
 
+        const onType = getPreferredFragmentPropName(typeInfo.parentTypeName);
+
         const fragmentName = `${capitalize(newComponentName)}_${uncapitalize(
-          typeInfo.parentTypeName
+          onType
         )}`;
 
         const source = new Source(selectedOperation.content);
@@ -1157,6 +1160,9 @@ function initCommands(context: ExtensionContext): void {
           )}${newComponentName}.res`,
         });
 
+        const moduleName = `${pascalCase(onType)}Fragment`;
+        const propName = uncapitalize(onType);
+
         const newFragment = await makeFragment(
           fragmentName,
           typeInfo.parentTypeName,
@@ -1167,7 +1173,7 @@ function initCommands(context: ExtensionContext): void {
 
         fs.writeFileSync(
           newFilePath.fsPath,
-          `module ${pascalCase(typeInfo.parentTypeName)}Fragment = %relay( 
+          `module ${moduleName} = %relay( 
   \`
 ${newFragment
   .split("\n")
@@ -1177,10 +1183,8 @@ ${newFragment
 )
 
 @react.component
-let make = (~${uncapitalize(typeInfo.parentTypeName)}) => {
-  let ${uncapitalize(typeInfo.parentTypeName)} = ${
-            typeInfo.parentTypeName
-          }Fragment.use(${uncapitalize(typeInfo.parentTypeName)})
+let make = (~${propName}) => {
+  let ${propName} = ${moduleName}.use(${propName})
 
   React.null
 }`

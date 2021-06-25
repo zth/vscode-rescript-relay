@@ -44,6 +44,11 @@
           "default": true,
           "description": "Autostart the Relay compiler when in a RescriptRelay project?"
         },
+        "rescript-relay.preferShortNames": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prefer short names for generated fragments?"
+        },
         "graphql-config.load.rootDir": {
           "type": [
             "string"
