@@ -6,7 +6,7 @@ Please report any issues you might have to the main [RescriptRelay issue tracker
 
 ## Setup
 
-Right now, you'll need to open VSCode in the _root where you've installed Relay_. For monorepos, this means you'll need to open the subfolder where your frontend project using Relay is located. This will hopefully be fixed in the future.
+Right now, you'll need to open VSCode in the _root where you've installed Relay_ and that folder must be part of a Git Repository. For monorepos, this means you'll need to open the subfolder where your frontend project using Relay is located. This will hopefully be fixed in the future.
 
 This extension should _Just Work(tm)_, as it finds and uses your `relay.config.js`.
 
