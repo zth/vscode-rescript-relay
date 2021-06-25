@@ -39,6 +39,12 @@
           "type": "boolean",
           "default": true,
           "description": "Autostart the Relay compiler when in a RescriptRelay project?"
+        },
+        "graphql-config.load.rootDir": {
+          "type": [
+            "string"
+          ],
+          "description": "(dummy config, do not touch)"
         }
       }
     },
@@ -120,7 +126,7 @@
   },
   "dependencies": {
     "graphql": "^14.6.0",
-    "graphql-config": "3.3.0",
+    "graphql-config": "3.0.3",
     "graphql-language-service-interface": "2.8.4",
     "graphql-language-service-parser": "1.9.2",
     "graphql-language-service-server": "2.6.3",
@@ -146,7 +152,7 @@
     "vscode": "1.1.37"
   },
   "resolutions": {
-    "graphql-config": "3.3.0",
+    "graphql-config": "3.0.3",
     "graphql-language-service-interface": "2.8.4",
     "graphql-language-service-parser": "1.9.2",
     "graphql-language-service-server": "2.6.3",
