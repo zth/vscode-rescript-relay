@@ -18,13 +18,6 @@ directive @relay(
   plural: Boolean
 ) on FRAGMENT_DEFINITION | FRAGMENT_SPREAD
 
-# Handles
-directive @__clientField(
-  filters: [String!]
-  handle: String!
-  key: String
-) on FIELD
-
 # MatchTransform
 directive @match(key: String) on FIELD
 

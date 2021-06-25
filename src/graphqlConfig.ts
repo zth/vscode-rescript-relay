@@ -1,25 +1,14 @@
 import { GraphQLConfig, loadConfig, loadConfigSync } from "graphql-config";
-import {
-  AddInternalIDsExtension,
-  RelayDirectivesExtension,
-} from "./configUtils";
-import * as path from "path";
+import { RelayDirectivesExtension } from "./configUtils";
 
 const makeLoadConfig = (workspaceBaseDir: string) => ({
   configName: "relay",
-  extensions: [
-    RelayDirectivesExtension,
-    AddInternalIDsExtension,
-    () => ({
-      name: "customValidationRules",
-    }),
-  ],
+  extensions: [RelayDirectivesExtension],
   rootDir: workspaceBaseDir,
 });
 
 export async function createGraphQLConfig(
-  workspaceBaseDir: string,
-  includeValidationRules?: boolean
+  workspaceBaseDir: string
 ): Promise<GraphQLConfig | undefined> {
   const config = await loadConfig(makeLoadConfig(workspaceBaseDir));
 
@@ -27,31 +16,16 @@ export async function createGraphQLConfig(
     return;
   }
 
-  if (includeValidationRules) {
-    const project = config.getProject();
-    project.extensions["customValidationRules"] = path.resolve(
-      path.join(__dirname, "../build/validationRules.js")
-    );
-  }
-
   return config;
 }
 
 export function createGraphQLConfigSync(
-  workspaceBaseDir: string,
-  includeValidationRules?: boolean
+  workspaceBaseDir: string
 ): GraphQLConfig | undefined {
   const config = loadConfigSync(makeLoadConfig(workspaceBaseDir));
 
   if (!config) {
     return;
-  }
-
-  if (includeValidationRules) {
-    const project = config.getProject();
-    project.extensions["customValidationRules"] = path.resolve(
-      path.join(__dirname, "../build/validationRules.js")
-    );
   }
 
   return config;

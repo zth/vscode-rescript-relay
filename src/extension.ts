@@ -1358,7 +1358,8 @@ function initLanguageServer(
           d.filter(
             (dia) =>
               !dia.message.includes("Unknown argument") &&
-              !dia.message.includes('on directive "@argumentDefinitions"')
+              !dia.message.includes('on directive "@argumentDefinitions"') &&
+              !dia.message.includes("__id")
           )
         );
       },
