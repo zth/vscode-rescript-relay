@@ -25,12 +25,15 @@ import {
   OperationTypeNode,
   GraphQLScalarType,
   GraphQLEnumType,
+  GraphQLNamedType,
 } from "graphql";
 
-import { Position } from "vscode";
+import { Position, window } from "vscode";
+import * as path from "path";
 import { loadFullSchema } from "./loadSchema";
 import { prettify } from "./extensionUtils";
 import { State } from "graphql-language-service-parser";
+import { quickPickFromSchema } from "./addGraphQLComponent";
 
 export interface NodeWithLoc {
   loc?: Location | undefined;
@@ -508,3 +511,71 @@ export const makeConnectionsVariable = (
     },
   ];
 };
+
+export async function pickTypeForFragment(): Promise<string | undefined> {
+  const { result } = quickPickFromSchema("Select type of the fragment", (s) =>
+    Object.values(s.getTypeMap()).reduce(
+      (acc: string[], curr: GraphQLNamedType) => {
+        if (
+          (curr instanceof GraphQLObjectType ||
+            curr instanceof GraphQLInterfaceType ||
+            curr instanceof GraphQLUnionType) &&
+          !curr.name.startsWith("__")
+        ) {
+          acc.push(curr.name);
+        }
+
+        return acc;
+      },
+      []
+    )
+  );
+
+  return await result;
+}
+
+type GetFragmentComponentTextConfig = {
+  moduleName: string;
+  fragmentText: string;
+  propName: string;
+};
+
+export function getFragmentComponentText({
+  moduleName,
+  fragmentText,
+  propName,
+}: GetFragmentComponentTextConfig) {
+  return `module ${moduleName} = %relay(\`
+${fragmentText
+  .split("\n")
+  .map((s) => `  ${s}`)
+  .join("\n")}
+\`)
+  
+@react.component
+let make = (~${propName}) => {
+  let ${propName} = ${moduleName}.use(${propName})
+
+  React.null
+}`;
+}
+
+export function getNewFilePath(newComponentName: string) {
+  const editor = window.activeTextEditor;
+
+  if (editor == null) {
+    throw new Error("Could not find active editor.");
+  }
+
+  const currentFilePath = editor.document.uri.path;
+  const thisFileName = path.basename(currentFilePath);
+
+  const newFilePath = editor.document.uri.with({
+    path: `${currentFilePath.slice(
+      0,
+      currentFilePath.length - thisFileName.length
+    )}${newComponentName}.res`,
+  });
+
+  return newFilePath;
+}

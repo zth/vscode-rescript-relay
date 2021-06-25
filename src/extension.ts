@@ -99,6 +99,9 @@ import {
   getFirstField,
   makeFragment,
   makeConnectionsVariable,
+  pickTypeForFragment,
+  getFragmentComponentText,
+  getNewFilePath,
 } from "./graphqlUtils";
 import {
   addFragmentHere,
@@ -1150,15 +1153,7 @@ function initCommands(context: ExtensionContext): void {
           )
         );
 
-        const currentFilePath = editor.document.uri.path;
-        const thisFileName = path.basename(currentFilePath);
-
-        const newFilePath = editor.document.uri.with({
-          path: `${currentFilePath.slice(
-            0,
-            currentFilePath.length - thisFileName.length
-          )}${newComponentName}.res`,
-        });
+        const newFilePath = getNewFilePath(newComponentName);
 
         const moduleName = `${pascalCase(onType)}Fragment`;
         const propName = uncapitalize(onType);
@@ -1173,21 +1168,11 @@ function initCommands(context: ExtensionContext): void {
 
         fs.writeFileSync(
           newFilePath.fsPath,
-          `module ${moduleName} = %relay( 
-  \`
-${newFragment
-  .split("\n")
-  .map((s) => `  ${s}`)
-  .join("\n")}
-  \`
-)
-
-@react.component
-let make = (~${propName}) => {
-  let ${propName} = ${moduleName}.use(${propName})
-
-  React.null
-}`
+          getFragmentComponentText({
+            fragmentText: newFragment,
+            moduleName,
+            propName,
+          })
         );
 
         const newDoc = await workspace.openTextDocument(newFilePath);
@@ -1238,6 +1223,64 @@ let make = (~${propName}) => {
     commands.registerCommand("vscode-rescript-relay.add-fragment", () =>
       addGraphQLComponent("Fragment")
     ),
+    commands.registerCommand(
+      "vscode-rescript-relay.add-file-with-fragment",
+      async () => {
+        const editor = window.activeTextEditor;
+
+        if (!editor) {
+          return;
+        }
+
+        const newComponentName = await window.showInputBox({
+          prompt: "Name of your new component",
+          value: getModuleNameFromFile(editor.document.uri),
+          validateInput(v: string): string | null {
+            return /^[a-zA-Z0-9_]*$/.test(v)
+              ? null
+              : "Please only use alphanumeric characters and underscores.";
+          },
+        });
+
+        if (newComponentName == null) {
+          return;
+        }
+
+        const pickedFragmentType = await pickTypeForFragment();
+
+        if (pickedFragmentType == null) {
+          return;
+        }
+
+        const onType = getPreferredFragmentPropName(pickedFragmentType);
+        const fragmentName = `${capitalize(newComponentName)}_${uncapitalize(
+          onType
+        )}`;
+        const moduleName = `${pascalCase(onType)}Fragment`;
+        const propName = uncapitalize(onType);
+
+        const newFragment = await makeFragment(
+          fragmentName,
+          pickedFragmentType,
+          [makeFieldSelection("__typename")]
+        );
+
+        const newFilePath = getNewFilePath(newComponentName);
+
+        fs.writeFileSync(
+          newFilePath.fsPath,
+          getFragmentComponentText({
+            fragmentText: newFragment,
+            moduleName,
+            propName,
+          })
+        );
+
+        const newDoc = await workspace.openTextDocument(newFilePath);
+        await newDoc.save();
+        window.showTextDocument(newDoc);
+      }
+    ),
     commands.registerCommand("vscode-rescript-relay.add-query", () =>
       addGraphQLComponent("Query")
     ),
@@ -1278,15 +1321,7 @@ let make = (~${propName}) => {
 
         const lazyComponentName = `${componentName}Lazy`;
 
-        const currentFilePath = editor.document.uri.path;
-        const thisFileName = path.basename(currentFilePath);
-
-        const newFilePath = editor.document.uri.with({
-          path: `${currentFilePath.slice(
-            0,
-            currentFilePath.length - thisFileName.length
-          )}${lazyComponentName}.res`,
-        });
+        const newFilePath = getNewFilePath(lazyComponentName);
 
         fs.writeFileSync(
           newFilePath.fsPath,

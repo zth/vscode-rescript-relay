@@ -6,10 +6,6 @@ import { TextEditorEdit, window, Selection } from "vscode";
 
 import {
   GraphQLSchema,
-  GraphQLNamedType,
-  GraphQLObjectType,
-  GraphQLInterfaceType,
-  GraphQLUnionType,
   isInterfaceType,
   isObjectType,
   VariableDefinitionNode,
@@ -20,6 +16,7 @@ import {
   makeFragment,
   makeOperation,
   makeVariableDefinitionNode,
+  pickTypeForFragment,
 } from "./graphqlUtils";
 import { getPreferredFragmentPropName } from "./utils";
 import { pascalCase } from "pascal-case";
@@ -89,27 +86,7 @@ export async function addGraphQLComponent(type: InsertGraphQLComponentType) {
 
   switch (type) {
     case "Fragment": {
-      const { result } = quickPickFromSchema(
-        "Select type of the fragment",
-        (s) =>
-          Object.values(s.getTypeMap()).reduce(
-            (acc: string[], curr: GraphQLNamedType) => {
-              if (
-                (curr instanceof GraphQLObjectType ||
-                  curr instanceof GraphQLInterfaceType ||
-                  curr instanceof GraphQLUnionType) &&
-                !curr.name.startsWith("__")
-              ) {
-                acc.push(curr.name);
-              }
-
-              return acc;
-            },
-            []
-          )
-      );
-
-      const onType = await result;
+      const onType = await pickTypeForFragment();
 
       if (!onType) {
         return;

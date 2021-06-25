@@ -65,6 +65,12 @@
         "when": "editorLangId == rescript"
       },
       {
+        "command": "vscode-rescript-relay.add-file-with-fragment",
+        "title": "Add new file + fragment",
+        "category": "RescriptRelay",
+        "when": "editorLangId == rescript"
+      },
+      {
         "command": "vscode-rescript-relay.add-query",
         "title": "Add query",
         "category": "RescriptRelay",

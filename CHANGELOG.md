@@ -1,6 +1,7 @@
 ## master
 
 - Add config for preferring short names. Adding a fragment on `TodoItem` in `SomeFile.res` now names the fragment `SomeFile_item` instead of `SomeFile_todoItem`, which tends to get quite long for types with long names.
+- Add command for creating a new file with a fragment in it.
 
 ## 0.5.3
 
