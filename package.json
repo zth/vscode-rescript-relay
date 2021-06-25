@@ -9,9 +9,13 @@
   "scripts": {
     "vscode:prepublish": "yarn build",
     "postinstall": "node ./node_modules/vscode/bin/install",
-    "build": "rm -rf build && tsc",
     "build:watch": "tsc -w",
-    "test": "jest"
+    "test": "jest",
+    "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=build/extension.js --external:vscode --format=cjs --platform=node",
+    "build:extension": "esbuild ./src/extension.ts --bundle --outfile=build/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "build:server": "esbuild ./src/server.ts --bundle --outfile=build/server.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "build:clean": "rm -rf build",
+    "build": "yarn build:clean && yarn build:extension && yarn build:server"
   },
   "author": "Gabriel Nordeborn <gabbe.nord@gmail.com>",
   "repository": {
@@ -147,6 +151,7 @@
     "@types/node": "14.14.33",
     "@types/prettier": "2.2.2",
     "@types/semver": "7.3.4",
+    "esbuild": "^0.12.9",
     "jest": "26.6.3",
     "ts-jest": "26.5.3",
     "vscode": "1.1.37"
