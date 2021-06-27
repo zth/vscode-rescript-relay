@@ -109,6 +109,24 @@ import {
 } from "./createNewFragmentComponentsUtils";
 import { getPreferredFragmentPropName } from "./utils";
 
+let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
+
+const killCompiler = () => {
+  let killedProcess = false;
+
+  childProcesses = childProcesses.filter((childProcess) => {
+    const res = childProcess.kill("SIGINT");
+
+    if (res) {
+      killedProcess = true;
+    }
+
+    return !res;
+  });
+
+  return killedProcess;
+};
+
 function getModuleNameFromFile(uri: Uri): string {
   return capitalize(path.basename(uri.path, ".res"));
 }
@@ -1499,22 +1517,6 @@ export async function activate(context: ExtensionContext) {
       )
     );
 
-    let childProcess: cp.ChildProcessWithoutNullStreams | undefined;
-
-    const killCompiler = () => {
-      if (childProcess != null) {
-        const res = childProcess.kill("SIGINT");
-
-        if (res) {
-          childProcess = undefined;
-        }
-
-        return res;
-      }
-
-      return false;
-    };
-
     const mainItem = window.createStatusBarItem(StatusBarAlignment.Right);
     const extraItemWhenHasError = window.createStatusBarItem(
       StatusBarAlignment.Right
@@ -1568,8 +1570,7 @@ export async function activate(context: ExtensionContext) {
       relayCompilerOutputChannel,
       commands.registerCommand("vscode-rescript-relay.start-compiler", () => {
         killCompiler();
-
-        childProcess = cp.spawn(
+        const childProcess = cp.spawn(
           // TODO: Do a more robust solution for the PATH that also works with Windows
           `PATH=$PATH:./node_modules/.bin ${projectType.type}-compiler`,
           ["--watch"],
@@ -1578,6 +1579,7 @@ export async function activate(context: ExtensionContext) {
             shell: true,
           }
         );
+        childProcesses.push(childProcess);
 
         let errorBuffer: string | undefined;
         let hasHadError: boolean = false;
@@ -1652,7 +1654,7 @@ export async function activate(context: ExtensionContext) {
             window.showInformationMessage(
               "The Relay compiler has been shut down."
             );
-            childProcess = undefined;
+            killCompiler();
             setStatusBarItemToStart(mainItem);
           });
 
@@ -1704,5 +1706,6 @@ export async function activate(context: ExtensionContext) {
 }
 
 export function deactivate() {
+  killCompiler();
   console.log('Extension "vscode-rescript-relay" is now de-activated!');
 }
