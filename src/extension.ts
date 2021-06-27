@@ -2,6 +2,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { pascalCase } from "pascal-case";
 import * as cp from "child_process";
+import kill from "tree-kill";
 
 import {
   workspace,
@@ -115,13 +116,9 @@ const killCompiler = () => {
   let killedProcess = false;
 
   childProcesses = childProcesses.filter((childProcess) => {
-    const res = childProcess.kill("SIGINT");
-
-    if (res) {
-      killedProcess = true;
-    }
-
-    return !res;
+    kill(childProcess.pid);
+    killedProcess = true;
+    return false;
   });
 
   return killedProcess;
