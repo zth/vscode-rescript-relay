@@ -2,6 +2,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { pascalCase } from "pascal-case";
 import * as cp from "child_process";
+// @ts-ignore
 import kill from "tree-kill";
 
 import {
@@ -113,15 +114,11 @@ import { getPreferredFragmentPropName } from "./utils";
 let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
 
 const killCompiler = () => {
-  let killedProcess = false;
-
-  childProcesses = childProcesses.filter((childProcess) => {
+  childProcesses.forEach((childProcess) => {
     kill(childProcess.pid);
-    killedProcess = true;
-    return false;
   });
 
-  return killedProcess;
+  childProcesses = [];
 };
 
 function getModuleNameFromFile(uri: Uri): string {
@@ -1661,12 +1658,8 @@ export async function activate(context: ExtensionContext) {
         return new VSCodeDisposable(killCompiler);
       }),
       commands.registerCommand("vscode-rescript-relay.stop-compiler", () => {
-        if (killCompiler()) {
-          setStatusBarItemToStart(mainItem);
-          extraItemWhenHasError.hide();
-        } else {
-          window.showWarningMessage("Could not stop the Relay compiler.");
-        }
+        setStatusBarItemToStart(mainItem);
+        extraItemWhenHasError.hide();
 
         return new VSCodeDisposable(killCompiler);
       })

@@ -1,5 +1,7 @@
 ## master
 
+- Fix issues with the extension accidentally creating Relay compiler processes that it doesn't also shut down properly. Shout out to @mellson.
+
 ## 0.5.4
 
 - The extension is now bundled properly via `esbuild`.
