@@ -260,6 +260,9 @@ function initHoverProviders(_context: ExtensionContext) {
 
       const namedType = getNamedType(positionCtx.type);
 
+      /**
+       * Handle schema documentation
+       */
       let graphqlSchemaDocHover = new MarkdownString();
       graphqlSchemaDocHover.isTrusted = true;
 
@@ -290,6 +293,31 @@ function initHoverProviders(_context: ExtensionContext) {
       }
 
       hovers.push(graphqlSchemaDocHover);
+
+      /**
+       * Handle contextual navigation
+       */
+
+      const startPos = getAdjustedPosition(ctx.tag, positionCtx?.startLoc);
+
+      const goToGraphQLDefinitionArgs = [
+        document.uri,
+        startPos.line,
+        startPos.character,
+      ];
+
+      const goToGraphQLDefinitionCommand = Uri.parse(
+        `command:vscode-rescript-relay.goto-pos-in-doc?${encodeURIComponent(
+          JSON.stringify(goToGraphQLDefinitionArgs)
+        )}`
+      );
+
+      let graphqlDefinitionHover = new MarkdownString(
+        `Go to definition in fragment [${ctx.fragmentName}](${goToGraphQLDefinitionCommand})`
+      );
+      graphqlDefinitionHover.isTrusted = true;
+
+      hovers.push(graphqlDefinitionHover);
 
       return new Hover(hovers);
     },
@@ -1383,6 +1411,20 @@ function initCommands(context: ExtensionContext): void {
             new Position(endLine, 0)
           ),
         });
+      }
+    ),
+    commands.registerCommand(
+      "vscode-rescript-relay.goto-pos-in-doc",
+      async (rawUri: string, line: number, char: number) => {
+        const uri = Uri.parse(rawUri);
+
+        await commands.executeCommand(
+          "editor.action.goToLocations",
+          uri,
+          new Position(line, char),
+          [],
+          "goto"
+        );
       }
     ),
     commands.registerCommand(

@@ -13,7 +13,6 @@ describe("extractContextFromHover", () => {
     ).toEqual({
       fragmentName: "SingleTicket_ticket",
       recordName: "fragment",
-      fragments: ["TicketStatusBadge_ticket"],
     });
   });
 
@@ -25,7 +24,21 @@ describe("extractContextFromHover", () => {
     ).toEqual({
       fragmentName: "SingleTicket_ticket",
       recordName: "fragment_user_friends_Friend_node",
-      fragments: ["TicketStatusBadge_ticket", "TicketHeader_ticket"],
+    });
+  });
+
+  it("finds the context of wrapped option strings", () => {
+    expect(
+      extractContextFromHover(
+        `array<
+        option<
+          ReasonReactExamples.SingleTicketWorkingGroup_workingGroup_graphql.Types.fragment_membersConnection_edges,
+        >,
+      >`
+      )
+    ).toEqual({
+      fragmentName: "SingleTicketWorkingGroup_workingGroup",
+      recordName: "fragment_membersConnection_edges",
     });
   });
 
@@ -51,7 +64,7 @@ type Query {
 `);
 
 describe("findGraphQLRecordContext", () => {
-  it.only("finds the relevant context", () => {
+  it("finds the relevant context", () => {
     const ctx = findGraphQLRecordContext(
       `fragment Test_user on User {
     id

@@ -10,7 +10,6 @@ import {
   SourceLocation,
 } from "graphql";
 
-const opFragmentNameExtractorRegexp = /^`+rescript\n\w+\.(\w+)_graphql\.Types\.(\w+)\n/g;
 // const fragmentRefsExtractor = /\.fragmentRefs<[\s\S.]+\[([#A-Za-z_ \s\S|]+)\]/g;
 
 /*function extractFragmentRefs(src: string) {
@@ -34,9 +33,15 @@ export function extractContextFromHover(hoverContents: string) {
   let fragmentName: string | null = null;
   let recordName: string | null = null;
 
+  const opFragmentNameExtractorRegexp = /\w+\.(\w+)_graphql.Types\.(\w+).*/g;
+
   while ((res = opFragmentNameExtractorRegexp.exec(hoverContents)) !== null) {
     fragmentName = res[1] ?? null;
     recordName = res[2] ?? null;
+
+    if (fragmentName != null && recordName != null) {
+      break;
+    }
   }
 
   if (fragmentName == null || recordName == null) {
