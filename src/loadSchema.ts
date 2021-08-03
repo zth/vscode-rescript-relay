@@ -127,7 +127,15 @@ export type RelayConfig = {
   artifactDirectory: string;
 };
 
-export async function loadRelayConfig(): Promise<RelayConfig | undefined> {
+let loadedRelayConfig: RelayConfig | null = null;
+
+export async function loadRelayConfig(
+  forceReload?: boolean
+): Promise<RelayConfig | undefined> {
+  if (loadedRelayConfig != null && !forceReload) {
+    return loadedRelayConfig;
+  }
+
   const config = await loadGraphQLConfig();
   if (config) {
     let relayConfig: RelayConfig | undefined;
@@ -150,7 +158,8 @@ export async function loadRelayConfig(): Promise<RelayConfig | undefined> {
       return;
     }
 
-    return relayConfig;
+    loadedRelayConfig = relayConfig;
+    return loadedRelayConfig;
   }
 }
 

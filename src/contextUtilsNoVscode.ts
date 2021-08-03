@@ -129,7 +129,7 @@ export const findGraphQLRecordContext = (
     const namedPath = getNamedPath(ancestors, node);
 
     if (namedPath === recordName) {
-      const type = typeInfo.getParentType();
+      const type = typeInfo.getType();
       if (type != null) {
         typeOfThisThing = type;
 

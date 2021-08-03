@@ -28,6 +28,7 @@ import {
   StatusBarItem,
   Location,
   Hover,
+  MarkdownString,
 } from "vscode";
 
 import {
@@ -39,7 +40,6 @@ import {
   ServerOptions,
   LanguageClient,
   TransportKind,
-  MarkedString,
 } from "vscode-languageclient/node";
 
 import {
@@ -81,6 +81,7 @@ import {
   OperationDefinitionNode,
   ArgumentNode,
   FragmentDefinitionNode,
+  getLocation,
 } from "graphql";
 import {
   loadFullSchema,
@@ -249,11 +250,46 @@ function initHoverProviders(_context: ExtensionContext) {
         return;
       }
 
-      const hovers: MarkedString[] = [];
+      const relayConfig = await loadRelayConfig();
+
+      if (relayConfig == null) {
+        return;
+      }
+
+      const hovers: MarkdownString[] = [];
+
+      const namedType = getNamedType(positionCtx.type);
+
+      let graphqlSchemaDocHover = new MarkdownString();
+      graphqlSchemaDocHover.isTrusted = true;
+
+      const astNode = namedType.astNode;
+
+      if (astNode != null && astNode.loc != null) {
+        const startLoc = getLocation(astNode.loc.source, astNode.loc.start);
+
+        const openGraphQLSchemaArgs = [startLoc.line, startLoc.line];
+
+        const openGraphQLSchemaCommand = Uri.parse(
+          `command:vscode-rescript-relay.open-graphql-schema?${encodeURIComponent(
+            JSON.stringify(openGraphQLSchemaArgs)
+          )}`
+        );
+
+        graphqlSchemaDocHover.appendMarkdown(
+          `[${namedType.name}](${openGraphQLSchemaCommand})`
+        );
+      } else {
+        graphqlSchemaDocHover.appendMarkdown(`${namedType.name}`);
+      }
 
       if (positionCtx.type.description != null) {
-        hovers.push(positionCtx.type.description);
+        graphqlSchemaDocHover.appendMarkdown(
+          `: _${positionCtx.type.description}_`
+        );
       }
+
+      hovers.push(graphqlSchemaDocHover);
 
       return new Hover(hovers);
     },
@@ -1327,6 +1363,27 @@ function initCommands(context: ExtensionContext): void {
     ),
     commands.registerCommand("vscode-rescript-relay.add-subscription", () =>
       addGraphQLComponent("Subscription")
+    ),
+    commands.registerCommand(
+      "vscode-rescript-relay.open-graphql-schema",
+      async (startLine: number, endLine: number) => {
+        const relayConfig = await loadRelayConfig();
+
+        if (relayConfig == null) {
+          return;
+        }
+
+        const schemaTextDoc = await workspace.openTextDocument(
+          relayConfig.schema
+        );
+
+        await window.showTextDocument(schemaTextDoc, {
+          selection: new Range(
+            new Position(startLine, 0),
+            new Position(endLine, 0)
+          ),
+        });
+      }
     ),
     commands.registerCommand(
       "vscode-rescript-relay.wrap-in-suspense-boundary",
