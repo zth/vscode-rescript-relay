@@ -26,6 +26,7 @@ import {
   GraphQLScalarType,
   GraphQLEnumType,
   GraphQLNamedType,
+  SourceLocation,
 } from "graphql";
 
 import { Position, window } from "vscode";
@@ -34,6 +35,7 @@ import { loadFullSchema } from "./loadSchema";
 import { prettify } from "./extensionUtils";
 import { State } from "graphql-language-service-parser";
 import { quickPickFromSchema } from "./addGraphQLComponent";
+import { GraphQLSourceFromTag } from "./extensionTypes";
 
 export interface NodeWithLoc {
   loc?: Location | undefined;
@@ -579,3 +581,28 @@ export function getNewFilePath(newComponentName: string) {
 
   return newFilePath;
 }
+
+const lineCharToPos = ({
+  line,
+  character,
+}: {
+  line: number;
+  character: number;
+}) => new Position(line, character);
+
+export const getStartPosFromTag = (tag: GraphQLSourceFromTag) =>
+  lineCharToPos(tag.start);
+
+export const getEnPosFromTag = (tag: GraphQLSourceFromTag) =>
+  lineCharToPos(tag.start);
+
+export const getAdjustedPosition = (
+  tag: GraphQLSourceFromTag,
+  sourceLoc?: SourceLocation | null
+) => {
+  if (sourceLoc == null) {
+    return new Position(tag.start.line, tag.start.character);
+  }
+
+  return new Position(sourceLoc.line + tag.start.line, sourceLoc.column);
+};

@@ -26,6 +26,8 @@ import {
   Diagnostic,
   Disposable as VSCodeDisposable,
   StatusBarItem,
+  Location,
+  Hover,
 } from "vscode";
 
 import {
@@ -37,6 +39,7 @@ import {
   ServerOptions,
   LanguageClient,
   TransportKind,
+  MarkedString,
 } from "vscode-languageclient/node";
 
 import {
@@ -104,12 +107,15 @@ import {
   pickTypeForFragment,
   getFragmentComponentText,
   getNewFilePath,
+  getAdjustedPosition,
 } from "./graphqlUtils";
 import {
   addFragmentHere,
   extractToFragment,
 } from "./createNewFragmentComponentsUtils";
 import { getPreferredFragmentPropName } from "./utils";
+import { findContext } from "./contextUtils";
+import { findGraphQLRecordContext } from "./contextUtilsNoVscode";
 
 let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
 
@@ -206,108 +212,128 @@ type GraphQLTypeAtPos = {
 // const _getPathRegex = new RegExp(/Types\.[A-Za-z0-9_]*/g);
 
 function initHoverProviders(_context: ExtensionContext) {
-  /*languages.registerHoverProvider("rescript", {
-    provideHover(document, position) {
-      const extensionPath = extensions.getExtension(
-        "chenglou92.rescript-vscode"
-      )?.extensionPath;
-
-      if (!extensionPath) {
-        return null;
-      }
-
-      return new Promise((resolve, _reject) => {
-        runDumpCommand(
-          {
-            fileUri: document.uri.toString(),
-            position,
-          },
-          (res) => {
-            const hover = res?.hover;
-
-            if (!hover) {
-              resolve(null);
-              return;
-            }
-
-            const targetOpName = getOpNameRegex.exec(hover)?.[0];
-            const targetPath = getPathRegex
-              .exec(hover)?.[0]
-              .replace("Types.", "");
-
-            if (!targetOpName || !targetPath) {
-              resolve(null);
-              return;
-            }
-
-            const allOperationsInDoc = extractGraphQLSources(
-              "rescript",
-              document.getText()
-            );
-
-            if (!allOperationsInDoc) {
-              resolve(null);
-              return;
-            }
-
-            let targetNode:
-              | FragmentDefinitionNode
-              | OperationDefinitionNode
-              | FieldNode
-              | null = null;
-
-            for (const o of allOperationsInDoc) {
-              if (o.type === "TAG") {
-                const parsed = parse(o.content);
-                const targetDef = parsed.definitions[0];
-
-                if (targetDef) {
-                  if (
-                    (targetDef.kind === "FragmentDefinition" &&
-                      targetDef.name.value === targetOpName) ||
-                    (targetDef.kind === "OperationDefinition" &&
-                      targetDef.name?.value === targetOpName)
-                  ) {
-                    targetNode = targetDef as
-                      | FragmentDefinitionNode
-                      | OperationDefinitionNode;
-
-                    // Remove the first part of the path, we know it's the root
-                    let p = targetPath
-                      .split("_")
-                      .slice(1)
-                      .join("_");
-
-                    while (p !== "") {
-                      const nextPathNode = targetNode.selectionSet?.selections.find(
-                        (s) => s.kind === "Field" && p.startsWith(s.name.value)
-                      ) as FieldNode | undefined;
-
-                      if (nextPathNode) {
-                        p = p.slice(nextPathNode.name.value.length);
-                        targetNode = nextPathNode;
-                      } else {
-                        p = "";
-                      }
-                    }
-                  }
-                }
-              }
-            }
-
-            resolve(
-              new Hover(
-                new MarkdownString(
-                  JSON.stringify({ fieldName: targetNode?.name?.value ?? "-" })
-                )
-              )
-            );
-          },
-          extensionPath
-        );
-      });
+  /*languages.registerCodeActionsProvider("rescript", {
+    async provideCodeActions(
+      document,
+      selection
+    ): Promise<(CodeAction | Command)[] | undefined> {
+      // Try to find the context of this hover position
+      try {
+        const ctx = findContext(document, selection);
+      } catch {}
+      return;
     },
   });*/
+
+  languages.registerHoverProvider("rescript", {
+    async provideHover(document, position) {
+      const ctx = findContext(document, position);
+
+      if (ctx == null) {
+        return;
+      }
+
+      const schema = await loadFullSchema();
+
+      if (schema == null) {
+        return;
+      }
+
+      const positionCtx = findGraphQLRecordContext(
+        ctx.tag.content,
+        ctx.recordName,
+        schema
+      );
+
+      if (positionCtx == null) {
+        return;
+      }
+
+      const hovers: MarkedString[] = [];
+
+      if (positionCtx.type.description != null) {
+        hovers.push(positionCtx.type.description);
+      }
+
+      return new Hover(hovers);
+    },
+  });
+
+  languages.registerCodeActionsProvider("rescript", {
+    async provideCodeActions(
+      document,
+      selection
+    ): Promise<(CodeAction | Command)[] | undefined> {
+      const ctx = findContext(document, selection);
+
+      if (ctx == null) {
+        return;
+      }
+
+      const schema = await loadFullSchema();
+
+      if (schema == null) {
+        return;
+      }
+
+      const positionCtx = findGraphQLRecordContext(
+        ctx.tag.content,
+        ctx.recordName,
+        schema
+      );
+
+      const actions = [];
+
+      // Peek fragment
+      const peekFragment = new CodeAction(
+        `Peek this value in "${ctx.fragmentName}"`,
+        CodeActionKind.Empty
+      );
+
+      peekFragment.command = {
+        title: "Peek definition",
+        command: "editor.action.peekLocations",
+        arguments: [
+          document.uri,
+          selection.start,
+          [
+            new Location(
+              document.uri,
+              new Range(
+                getAdjustedPosition(ctx.tag, positionCtx?.startLoc),
+                getAdjustedPosition(ctx.tag, positionCtx?.endLoc)
+              )
+            ),
+          ],
+          "peek",
+        ],
+      };
+
+      actions.push(peekFragment);
+
+      // Go to fragment
+      const goToFragment = new CodeAction(
+        `Go to definition of "${ctx.fragmentName}"`,
+        CodeActionKind.Empty
+      );
+
+      goToFragment.command = {
+        title: "Go to definition",
+        command: "editor.action.goToLocations",
+        arguments: [
+          document.uri,
+          getAdjustedPosition(ctx.tag, positionCtx?.startLoc),
+          [],
+          "goto",
+        ],
+      };
+
+      actions.push(goToFragment);
+
+      return actions;
+    },
+  });
+
   languages.registerCodeActionsProvider("rescript", {
     async provideCodeActions(
       document,
