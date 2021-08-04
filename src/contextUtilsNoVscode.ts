@@ -8,6 +8,7 @@ import {
   GraphQLCompositeType,
   getLocation,
   SourceLocation,
+  getNamedType,
 } from "graphql";
 
 // const fragmentRefsExtractor = /\.fragmentRefs<[\s\S.]+\[([#A-Za-z_ \s\S|]+)\]/g;
@@ -27,7 +28,16 @@ import {
   return fragmentRefs.split(` | `);
 }*/
 
-export function extractContextFromHover(hoverContents: string) {
+export type GqlCtx = {
+  recordName: string;
+  fragmentName: string;
+  propName: string;
+};
+
+export function extractContextFromHover(
+  propName: string,
+  hoverContents: string
+): GqlCtx | null {
   let res;
 
   let fragmentName: string | null = null;
@@ -51,6 +61,7 @@ export function extractContextFromHover(hoverContents: string) {
   return {
     recordName,
     fragmentName,
+    propName,
   };
 }
 
@@ -86,45 +97,22 @@ const getNamedPath = (
   return ["fragment", ...paths, getNameForNode(node)].filter(Boolean).join("_");
 };
 
-/*const getAncestor = (
-  ancestors: ReadonlyArray<ASTNode | ReadonlyArray<ASTNode>> | null
-): ASTNode | null => {
-  if (ancestors == null) {
-    return null;
-  }
-
-  let ancestor;
-  let i = 0;
-
-  while (ancestor == null) {
-    if (i >= ancestors.length) {
-      break;
-    }
-
-    if (ancestors[i] == null || Array.isArray(ancestors[i])) {
-      i += 1;
-      continue;
-    } else {
-      ancestor = ancestors[i];
-      break;
-    }
-  }
-
-  return ancestor as ASTNode | null;
-};*/
-
 export const findGraphQLRecordContext = (
   src: string,
   recordName: string,
   schema: GraphQLSchema
 ): null | {
   type: GraphQLCompositeType;
+  description: string | null;
+  fieldTypeAsString: string;
   startLoc?: SourceLocation | null;
   endLoc?: SourceLocation | null;
 } => {
   const parsed = parse(src);
 
   let typeOfThisThing;
+  let description: string | null = null;
+  let fieldTypeAsString: string | null = null;
   let startLoc: SourceLocation | null = null;
   let endLoc;
 
@@ -135,10 +123,22 @@ export const findGraphQLRecordContext = (
 
     if (namedPath === recordName) {
       const type = typeInfo.getType();
-      if (type != null) {
-        typeOfThisThing = type;
+      fieldTypeAsString = type?.toString() ?? null;
+      const namedType = type ? getNamedType(type) : null;
+      const fieldDef = typeInfo.getFieldDef();
 
-        //const _ancestor = getAncestor(ancestors);
+      if (type != null && namedType != null) {
+        typeOfThisThing = namedType;
+
+        description = fieldDef.description ?? null;
+
+        // Don't include docs for built in types
+        if (
+          description == null &&
+          !["ID", "String", "Boolean", "Int", "Float"].includes(namedType.name)
+        ) {
+          description = namedType.description ?? null;
+        }
 
         if (node.loc != null && startLoc == null) {
           startLoc = getLocation(node.loc.source, node.loc.start);
@@ -162,12 +162,14 @@ export const findGraphQLRecordContext = (
 
   visit(parsed, visitor);
 
-  if (typeOfThisThing == null) {
+  if (typeOfThisThing == null || fieldTypeAsString == null) {
     return null;
   }
 
   return {
     type: typeOfThisThing,
+    fieldTypeAsString,
+    description,
     startLoc,
     endLoc,
   };

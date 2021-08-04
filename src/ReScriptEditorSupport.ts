@@ -7,6 +7,7 @@ import {
   HoverParams,
   RequestMessage,
   ResponseMessage,
+  TypeDefinitionParams,
 } from "vscode-languageserver-protocol";
 
 let bsconfigPartialPath = "bsconfig.json";
@@ -38,6 +39,26 @@ export function runHoverCommand(msg: RequestMessage, extRootDir: string) {
   let response = runAnalysisCommand(
     filePath,
     ["hover", filePath, params.position.line, params.position.character],
+    msg,
+    extRootDir
+  );
+  return response;
+}
+
+export function runTypeDefinitionCommand(
+  msg: RequestMessage,
+  extRootDir: string
+) {
+  let params = msg.params as TypeDefinitionParams;
+  let filePath = fileURLToPath(params.textDocument.uri);
+  let response = runAnalysisCommand(
+    filePath,
+    [
+      "typeDefinition",
+      filePath,
+      params.position.line,
+      params.position.character,
+    ],
     msg,
     extRootDir
   );

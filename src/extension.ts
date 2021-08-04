@@ -258,7 +258,7 @@ function initHoverProviders(_context: ExtensionContext) {
 
       const hovers: MarkdownString[] = [];
 
-      const namedType = getNamedType(positionCtx.type);
+      const type = positionCtx.type;
 
       /**
        * Handle schema documentation
@@ -266,7 +266,7 @@ function initHoverProviders(_context: ExtensionContext) {
       let graphqlSchemaDocHover = new MarkdownString();
       graphqlSchemaDocHover.isTrusted = true;
 
-      const astNode = namedType.astNode;
+      const astNode = type.astNode;
 
       if (astNode != null && astNode.loc != null) {
         const startLoc = getLocation(astNode.loc.source, astNode.loc.start);
@@ -280,16 +280,16 @@ function initHoverProviders(_context: ExtensionContext) {
         );
 
         graphqlSchemaDocHover.appendMarkdown(
-          `[${namedType.name}](${openGraphQLSchemaCommand})`
+          `[${positionCtx.fieldTypeAsString}](${openGraphQLSchemaCommand})`
         );
       } else {
-        graphqlSchemaDocHover.appendMarkdown(`${namedType.name}`);
+        graphqlSchemaDocHover.appendMarkdown(
+          `${positionCtx.fieldTypeAsString}`
+        );
       }
 
       if (positionCtx.type.description != null) {
-        graphqlSchemaDocHover.appendMarkdown(
-          `: _${positionCtx.type.description}_`
-        );
+        graphqlSchemaDocHover.appendMarkdown(`: _${positionCtx.description}_`);
       }
 
       hovers.push(graphqlSchemaDocHover);
@@ -313,7 +313,7 @@ function initHoverProviders(_context: ExtensionContext) {
       );
 
       let graphqlDefinitionHover = new MarkdownString(
-        `Go to definition in fragment [${ctx.fragmentName}](${goToGraphQLDefinitionCommand})`
+        `Go to definition of \`${ctx.propName}\` in [${ctx.fragmentName}](${goToGraphQLDefinitionCommand})`
       );
       graphqlDefinitionHover.isTrusted = true;
 
