@@ -19,10 +19,7 @@ import {
   GraphQLInterfaceType,
   GraphQLUnionType,
 } from "graphql";
-import {
-  makeFieldSelection,
-  makeFirstFieldSelection,
-} from "./graphqlUtilsNoVscode";
+import { makeFirstFieldSelection } from "./graphqlUtilsNoVscode";
 
 // const fragmentRefsExtractor = /\.fragmentRefs<[\s\S.]+\[([#A-Za-z_ \s\S|]+)\]/g;
 
@@ -154,7 +151,7 @@ export const findGraphQLRecordContext = (
         typeOfThisThing = namedType;
         astNode = node;
 
-        description = fieldDef.description ?? null;
+        description = fieldDef?.description ?? null;
 
         // Don't include docs for built in types
         if (

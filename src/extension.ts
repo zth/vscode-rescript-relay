@@ -334,98 +334,104 @@ function initProviders(_context: ExtensionContext) {
 
   languages.registerHoverProvider("rescript", {
     async provideHover(document, position) {
-      const ctx = findContext(document, position);
+      try {
+        const ctx = findContext(document, position);
 
-      if (ctx == null) {
-        return;
-      }
+        if (ctx == null) {
+          return;
+        }
 
-      const schema = await loadFullSchema();
+        const schema = await loadFullSchema();
 
-      if (schema == null) {
-        return;
-      }
+        if (schema == null) {
+          return;
+        }
 
-      const positionCtx = findGraphQLRecordContext(
-        ctx.tag.content,
-        ctx.recordName,
-        schema
-      );
+        const positionCtx = findGraphQLRecordContext(
+          ctx.tag.content,
+          ctx.recordName,
+          schema
+        );
 
-      if (positionCtx == null) {
-        return;
-      }
+        if (positionCtx == null) {
+          return;
+        }
 
-      const relayConfig = await loadRelayConfig();
+        const relayConfig = await loadRelayConfig();
 
-      if (relayConfig == null) {
-        return;
-      }
+        if (relayConfig == null) {
+          return;
+        }
 
-      const hovers: MarkdownString[] = [];
+        const hovers: MarkdownString[] = [];
 
-      const type = positionCtx.type;
+        const type = positionCtx.type;
 
-      /**
-       * Handle schema documentation
-       */
-      let graphqlSchemaDocHover = new MarkdownString();
-      graphqlSchemaDocHover.isTrusted = true;
+        /**
+         * Handle schema documentation
+         */
+        let graphqlSchemaDocHover = new MarkdownString();
+        graphqlSchemaDocHover.isTrusted = true;
 
-      const astNode = type.astNode;
+        const astNode = type.astNode;
 
-      if (astNode != null && astNode.loc != null) {
-        const startLoc = getLocation(astNode.loc.source, astNode.loc.start);
+        if (astNode != null && astNode.loc != null) {
+          const startLoc = getLocation(astNode.loc.source, astNode.loc.start);
 
-        const openGraphQLSchemaArgs = [startLoc.line, startLoc.line];
+          const openGraphQLSchemaArgs = [startLoc.line, startLoc.line];
 
-        const openGraphQLSchemaCommand = Uri.parse(
-          `command:vscode-rescript-relay.open-graphql-schema?${encodeURIComponent(
-            JSON.stringify(openGraphQLSchemaArgs)
+          const openGraphQLSchemaCommand = Uri.parse(
+            `command:vscode-rescript-relay.open-graphql-schema?${encodeURIComponent(
+              JSON.stringify(openGraphQLSchemaArgs)
+            )}`
+          );
+
+          graphqlSchemaDocHover.appendMarkdown(
+            `[${positionCtx.fieldTypeAsString}](${openGraphQLSchemaCommand})`
+          );
+        } else {
+          graphqlSchemaDocHover.appendMarkdown(
+            `${positionCtx.fieldTypeAsString}`
+          );
+        }
+
+        if (positionCtx.type.description != null) {
+          graphqlSchemaDocHover.appendMarkdown(
+            `: _${positionCtx.description}_`
+          );
+        }
+
+        hovers.push(graphqlSchemaDocHover);
+
+        /**
+         * Handle contextual navigation
+         */
+
+        const startPos = getAdjustedPosition(ctx.tag, positionCtx?.startLoc);
+
+        const goToGraphQLDefinitionArgs = [
+          document.uri,
+          startPos.line,
+          startPos.character,
+        ];
+
+        const goToGraphQLDefinitionCommand = Uri.parse(
+          `command:vscode-rescript-relay.goto-pos-in-doc?${encodeURIComponent(
+            JSON.stringify(goToGraphQLDefinitionArgs)
           )}`
         );
 
-        graphqlSchemaDocHover.appendMarkdown(
-          `[${positionCtx.fieldTypeAsString}](${openGraphQLSchemaCommand})`
+        let graphqlDefinitionHover = new MarkdownString(
+          `Go to definition of \`${ctx.propName}\` in [${ctx.fragmentName}](${goToGraphQLDefinitionCommand})`
         );
-      } else {
-        graphqlSchemaDocHover.appendMarkdown(
-          `${positionCtx.fieldTypeAsString}`
-        );
+        graphqlDefinitionHover.isTrusted = true;
+
+        hovers.push(graphqlDefinitionHover);
+
+        return new Hover(hovers);
+      } catch (e) {
+        window.showInformationMessage(e.message);
       }
-
-      if (positionCtx.type.description != null) {
-        graphqlSchemaDocHover.appendMarkdown(`: _${positionCtx.description}_`);
-      }
-
-      hovers.push(graphqlSchemaDocHover);
-
-      /**
-       * Handle contextual navigation
-       */
-
-      const startPos = getAdjustedPosition(ctx.tag, positionCtx?.startLoc);
-
-      const goToGraphQLDefinitionArgs = [
-        document.uri,
-        startPos.line,
-        startPos.character,
-      ];
-
-      const goToGraphQLDefinitionCommand = Uri.parse(
-        `command:vscode-rescript-relay.goto-pos-in-doc?${encodeURIComponent(
-          JSON.stringify(goToGraphQLDefinitionArgs)
-        )}`
-      );
-
-      let graphqlDefinitionHover = new MarkdownString(
-        `Go to definition of \`${ctx.propName}\` in [${ctx.fragmentName}](${goToGraphQLDefinitionCommand})`
-      );
-      graphqlDefinitionHover.isTrusted = true;
-
-      hovers.push(graphqlDefinitionHover);
-
-      return new Hover(hovers);
     },
   });
 
