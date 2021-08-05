@@ -15,6 +15,7 @@ export type GraphQLSourceFromFullDocument = {
 
 export type GraphQLSourceFromTag = {
   type: "TAG";
+  moduleName: string;
   content: string;
   start: {
     line: number;

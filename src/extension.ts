@@ -218,6 +218,7 @@ type GraphQLTypeAtPos = {
 };
 
 function initProviders(_context: ExtensionContext) {
+  // Autoinsert GraphQL field completions
   languages.registerCompletionItemProvider(
     "rescript",
     {
@@ -330,6 +331,72 @@ function initProviders(_context: ExtensionContext) {
       },
     },
     "."
+  );
+
+  // Handle pipe completions
+  languages.registerCompletionItemProvider(
+    "rescript",
+    {
+      async provideCompletionItems(document, selection) {
+        // First, check whether the character before > is - (meaning it's a pipe)
+        const posBehindPipe = new Position(
+          selection.line,
+          selection.character - 2
+        );
+
+        const char = document.getText(
+          new Range(
+            posBehindPipe,
+            new Position(selection.line, selection.character - 1)
+          )
+        );
+
+        if (char !== "-") {
+          return [];
+        }
+
+        const ctxPos = posBehindPipe;
+
+        const ctx = findContext(document, ctxPos);
+
+        if (ctx == null) {
+          return;
+        }
+
+        const schema = await loadFullSchema();
+
+        if (schema == null) {
+          return;
+        }
+
+        const positionCtx = findGraphQLRecordContext(
+          ctx.tag.content,
+          ctx.recordName,
+          schema
+        );
+
+        if (positionCtx == null) {
+          return;
+        }
+
+        if (
+          positionCtx.astNode?.kind === "Field" &&
+          positionCtx.astNode.directives?.some(
+            (d) => d.name.value === "connection"
+          )
+        ) {
+          const item = new CompletionItem(
+            `${ctx.tag.moduleName}.getConnectionNodes`
+          );
+          item.documentation = new MarkdownString(
+            `Collect all \`nodes\` to a non-optional array you can iterate on.`
+          );
+
+          return [item];
+        }
+      },
+    },
+    ">"
   );
 
   languages.registerHoverProvider("rescript", {
