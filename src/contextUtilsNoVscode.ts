@@ -9,7 +9,20 @@ import {
   getLocation,
   SourceLocation,
   getNamedType,
+  FragmentDefinitionNode,
+  FieldNode,
+  InlineFragmentNode,
+  DocumentNode,
+  GraphQLObjectType,
+  SelectionSetNode,
+  SelectionNode,
+  GraphQLInterfaceType,
+  GraphQLUnionType,
 } from "graphql";
+import {
+  makeFieldSelection,
+  makeFirstFieldSelection,
+} from "./graphqlUtilsNoVscode";
 
 // const fragmentRefsExtractor = /\.fragmentRefs<[\s\S.]+\[([#A-Za-z_ \s\S|]+)\]/g;
 
@@ -107,10 +120,17 @@ export const findGraphQLRecordContext = (
   fieldTypeAsString: string;
   startLoc?: SourceLocation | null;
   endLoc?: SourceLocation | null;
+  astNode: FragmentDefinitionNode | FieldNode | InlineFragmentNode | null;
+  parsedSource: DocumentNode;
 } => {
   const parsed = parse(src);
 
   let typeOfThisThing;
+  let astNode:
+    | FragmentDefinitionNode
+    | FieldNode
+    | InlineFragmentNode
+    | null = null;
   let description: string | null = null;
   let fieldTypeAsString: string | null = null;
   let startLoc: SourceLocation | null = null;
@@ -118,7 +138,10 @@ export const findGraphQLRecordContext = (
 
   const typeInfo = new TypeInfo(schema);
 
-  const checkNode = (node: ASTNode, ancestors: any) => {
+  const checkNode = (
+    node: FragmentDefinitionNode | FieldNode | InlineFragmentNode,
+    ancestors: any
+  ) => {
     const namedPath = getNamedPath(ancestors, node);
 
     if (namedPath === recordName) {
@@ -129,6 +152,7 @@ export const findGraphQLRecordContext = (
 
       if (type != null && namedType != null) {
         typeOfThisThing = namedType;
+        astNode = node;
 
         description = fieldDef.description ?? null;
 
@@ -162,15 +186,105 @@ export const findGraphQLRecordContext = (
 
   visit(parsed, visitor);
 
-  if (typeOfThisThing == null || fieldTypeAsString == null) {
+  if (typeOfThisThing == null || fieldTypeAsString == null || astNode == null) {
     return null;
   }
 
   return {
+    astNode,
     type: typeOfThisThing,
     fieldTypeAsString,
     description,
     startLoc,
     endLoc,
+    parsedSource: parsed,
   };
 };
+
+export function addFieldAtPosition(
+  parsedSrc: DocumentNode,
+  targetRecordName: string,
+  parentType: GraphQLCompositeType,
+  fieldName: string
+) {
+  if (parentType instanceof GraphQLObjectType === false) {
+    return parsedSrc;
+  }
+
+  const type = parentType as GraphQLObjectType;
+  const field = Object.values(type.getFields()).find(
+    (field) => field.name === fieldName
+  );
+
+  if (field == null) {
+    return parsedSrc;
+  }
+
+  const namedFieldType = getNamedType(field.type);
+
+  let hasAddedField = false;
+
+  const resolveNode = (
+    node: FieldNode | FragmentDefinitionNode | InlineFragmentNode,
+    ancestors: any
+  ): FieldNode | FragmentDefinitionNode | InlineFragmentNode => {
+    if (hasAddedField) {
+      return node;
+    }
+
+    const namedPath = getNamedPath(ancestors, node);
+
+    if (namedPath === targetRecordName) {
+      const selections: SelectionNode[] = [];
+
+      if (
+        namedFieldType instanceof GraphQLObjectType ||
+        namedFieldType instanceof GraphQLInterfaceType ||
+        namedFieldType instanceof GraphQLUnionType
+      ) {
+        selections.push(...makeFirstFieldSelection(namedFieldType));
+      }
+
+      hasAddedField = true;
+
+      const newFieldNode: SelectionNode = {
+        kind: "Field",
+        name: {
+          kind: "Name",
+          value: field.name,
+        },
+        selectionSet: {
+          kind: "SelectionSet",
+          selections,
+        },
+      };
+
+      const newSelectionSet: SelectionSetNode = {
+        kind: "SelectionSet",
+        ...node.selectionSet,
+        selections: [...(node.selectionSet?.selections ?? []), newFieldNode],
+      };
+
+      return {
+        ...node,
+        selectionSet: newSelectionSet,
+      };
+    }
+
+    return node;
+  };
+
+  const newSrc = visit(parsedSrc, {
+    FragmentDefinition(node, _a, _b, _c, ancestors) {
+      return resolveNode(node, ancestors);
+    },
+    InlineFragment(node, _a, _b, _c, ancestors) {
+      return resolveNode(node, ancestors);
+    },
+    Field(node, _a, _b, _c, ancestors) {
+      return resolveNode(node, ancestors);
+    },
+  });
+
+  return newSrc;
+}

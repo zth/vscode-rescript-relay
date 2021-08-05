@@ -12,7 +12,6 @@ import {
   ArgumentNode,
 } from "graphql";
 import {
-  makeFieldSelection,
   makeFragment,
   makeOperation,
   makeVariableDefinitionNode,
@@ -20,6 +19,7 @@ import {
 } from "./graphqlUtils";
 import { getPreferredFragmentPropName } from "./utils";
 import { pascalCase } from "pascal-case";
+import { makeFieldSelection } from "./graphqlUtilsNoVscode";
 
 async function getValidModuleName(
   docText: string,

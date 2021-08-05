@@ -29,6 +29,9 @@ import {
   Location,
   Hover,
   MarkdownString,
+  CompletionItem,
+  CompletionItemKind,
+  TextEdit,
 } from "vscode";
 
 import {
@@ -100,9 +103,6 @@ import {
   makeArgumentDefinitionVariable,
   findPath,
   makeArgument,
-  makeSelectionSet,
-  makeFieldSelection,
-  getFirstField,
   makeFragment,
   makeConnectionsVariable,
   pickTypeForFragment,
@@ -116,7 +116,15 @@ import {
 } from "./createNewFragmentComponentsUtils";
 import { getPreferredFragmentPropName } from "./utils";
 import { findContext } from "./contextUtils";
-import { findGraphQLRecordContext } from "./contextUtilsNoVscode";
+import {
+  addFieldAtPosition,
+  findGraphQLRecordContext,
+} from "./contextUtilsNoVscode";
+import {
+  makeSelectionSet,
+  makeFieldSelection,
+  getFirstField,
+} from "./graphqlUtilsNoVscode";
 
 let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
 
@@ -209,22 +217,120 @@ type GraphQLTypeAtPos = {
   parentTypeName: string;
 };
 
-// const _getOpNameRegex = new RegExp(/[A-Za-z0-9_]*(?=_graphql)/g);
-// const _getPathRegex = new RegExp(/Types\.[A-Za-z0-9_]*/g);
+function initProviders(_context: ExtensionContext) {
+  languages.registerCompletionItemProvider(
+    "rescript",
+    {
+      async provideCompletionItems(document, selection) {
+        const ctxPos = new Position(selection.line, selection.character - 1);
 
-function initHoverProviders(_context: ExtensionContext) {
-  /*languages.registerCodeActionsProvider("rescript", {
-    async provideCodeActions(
-      document,
-      selection
-    ): Promise<(CodeAction | Command)[] | undefined> {
-      // Try to find the context of this hover position
-      try {
-        const ctx = findContext(document, selection);
-      } catch {}
-      return;
+        const ctx = findContext(document, ctxPos);
+
+        if (ctx == null) {
+          return;
+        }
+
+        const schema = await loadFullSchema();
+
+        if (schema == null) {
+          return;
+        }
+
+        const positionCtx = findGraphQLRecordContext(
+          ctx.tag.content,
+          ctx.recordName,
+          schema
+        );
+
+        if (positionCtx == null) {
+          return;
+        }
+
+        if (positionCtx.type instanceof GraphQLObjectType) {
+          const existingFieldSelectionNames =
+            positionCtx.astNode?.selectionSet?.selections
+              .filter((s) => s.kind === "Field")
+              .map((s) => (s.kind === "Field" ? s.name.value : "")) ?? [];
+
+          const fields = Object.values(positionCtx.type.getFields()).filter(
+            (field) => !existingFieldSelectionNames.includes(field.name)
+          );
+
+          return fields.map((field) => {
+            const key = field.name;
+            const item = new CompletionItem(key);
+            item.kind = CompletionItemKind.Constant;
+
+            item.sortText = `zzzzz ${key}`;
+            const docs = new MarkdownString(
+              `${field.type.toString()}: \`${key}\`\n`
+            );
+
+            if (field.description != null) {
+              docs.appendMarkdown(`\n_${field.description}_\n`);
+            }
+
+            docs.appendMarkdown(
+              `\nAdd field \`${key}\` to \`${ctx.fragmentName}\` and use it`
+            );
+            item.documentation = docs;
+
+            // @ts-ignore
+            item.__extra = {
+              ctx,
+              positionCtx,
+            };
+
+            return item;
+          });
+        }
+      },
+
+      // Leverage resolve as we don't want to calculate changed operations for
+      // every single item in the completion list.
+      resolveCompletionItem(item) {
+        const key = item.label;
+
+        item.additionalTextEdits = [
+          TextEdit.replace(
+            new Range(
+              new Position(
+                // @ts-ignore
+                item.__extra.ctx.tag.start.line,
+                // @ts-ignore
+                item.__extra.ctx.tag.start.character
+              ),
+              new Position(
+                // @ts-ignore
+                item.__extra.ctx.tag.end.line,
+                // @ts-ignore
+                item.__extra.ctx.tag.end.character
+              )
+            ),
+            restoreOperationPadding(
+              prettify(
+                print(
+                  addFieldAtPosition(
+                    // @ts-ignore
+                    item.__extra.positionCtx.parsedSource,
+                    // @ts-ignore
+                    item.__extra.ctx.recordName,
+                    // @ts-ignore
+                    item.__extra.positionCtx.type,
+                    key
+                  )
+                )
+              ),
+              // @ts-ignore
+              item.__extra.ctx.tag.content
+            )
+          ),
+        ];
+        return item;
+      },
     },
-  });*/
+    "."
+  );
 
   languages.registerHoverProvider("rescript", {
     async provideHover(document, position) {
@@ -1589,7 +1695,7 @@ export async function activate(context: ExtensionContext) {
 
   await initClient();
   initCommands(context);
-  initHoverProviders(context);
+  initProviders(context);
 
   const schemaWatcher = workspace.createFileSystemWatcher("**/*.graphql");
 
