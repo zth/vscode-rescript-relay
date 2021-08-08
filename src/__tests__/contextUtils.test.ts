@@ -71,6 +71,17 @@ describe("extractContextFromHover", () => {
     ).toEqual(null);
   });
 
+  it("ignores functions", () => {
+    expect(
+      extractContextFromHover(
+        "x",
+        `\"RecentTickets_query_graphql-ReasonReactExamples".Types.fragment_ticketsConnection => array<
+        \"RecentTickets_query_graphql-ReasonReactExamples".Types.fragment_ticketsConnection_edges_node,
+      >`
+      )
+    ).toEqual(null);
+  });
+
   it("uses correct heuristic for unions", () => {
     expect(
       extractContextFromHover(

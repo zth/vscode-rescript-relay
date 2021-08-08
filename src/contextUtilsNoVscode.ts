@@ -59,6 +59,10 @@ export function extractContextFromHover(
   propName: string,
   hoverContents: string
 ): GqlCtx | null {
+  if (hoverContents.includes(" => ")) {
+    return null;
+  }
+
   let res;
 
   let fragmentName: string | null = null;
