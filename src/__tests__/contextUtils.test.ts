@@ -70,6 +70,19 @@ describe("extractContextFromHover", () => {
       )
     ).toEqual(null);
   });
+
+  it("uses correct heuristic for unions", () => {
+    expect(
+      extractContextFromHover(
+        "x",
+        "```rescript\n[\n          | #WorkingGroup(ReasonReactExamples.SingleTicket_ticket_graphql.Types.fragment_assignee_WorkingGroup)\n          | #User(ReasonReactExamples.SingleTicket_ticket_graphql.Types.fragment_assignee_User)\n          | #UnselectedUnionMember(string)\n        ]\n```"
+      )
+    ).toEqual({
+      fragmentName: "SingleTicket_ticket",
+      propName: "x",
+      recordName: "fragment_assignee",
+    });
+  });
 });
 
 const mockSchema = buildSchema(`

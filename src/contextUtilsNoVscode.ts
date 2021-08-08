@@ -18,6 +18,10 @@ import {
   SelectionNode,
   GraphQLInterfaceType,
   GraphQLUnionType,
+  GraphQLNamedType,
+  GraphQLScalarType,
+  GraphQLEnumType,
+  GraphQLInputObjectType,
 } from "graphql";
 import { makeFirstFieldSelection } from "./graphqlUtilsNoVscode";
 
@@ -65,6 +69,15 @@ export function extractContextFromHover(
   while ((res = opFragmentNameExtractorRegexp.exec(hoverContents)) !== null) {
     fragmentName = res[1] ?? null;
     recordName = res[2] ?? null;
+
+    // A (weird) heuristic for unions
+    if (
+      hoverContents.startsWith("```rescript\n[") &&
+      hoverContents.includes("UnselectedUnionMember(")
+    ) {
+      const parts = recordName.split("_");
+      recordName = parts.slice(0, parts.length - 1).join("_");
+    }
 
     if (fragmentName != null && recordName != null) {
       break;
@@ -115,7 +128,7 @@ const getNamedPath = (
 };
 
 export interface GraphQLRecordCtx {
-  type: GraphQLCompositeType;
+  type: GraphQLNamedType;
   description: string | null;
   fieldTypeAsString: string;
   startLoc?: SourceLocation | null;
@@ -131,7 +144,7 @@ export const findGraphQLRecordContext = (
 ): null | GraphQLRecordCtx => {
   const parsed = parse(src);
 
-  let typeOfThisThing;
+  let typeOfThisThing: GraphQLNamedType | null = null;
   let astNode:
     | FragmentDefinitionNode
     | FieldNode
@@ -293,4 +306,89 @@ export function addFieldAtPosition(
   });
 
   return newSrc;
+}
+
+export function addFragmentSpreadAtPosition(
+  parsedSrc: DocumentNode,
+  targetRecordName: string,
+  parentType: GraphQLCompositeType,
+  fragmentName: string
+) {
+  if (
+    parentType instanceof GraphQLObjectType === false &&
+    parentType instanceof GraphQLInterfaceType === false &&
+    parentType instanceof GraphQLUnionType === false
+  ) {
+    return null;
+  }
+
+  let hasAddedSpread = false;
+
+  const resolveNode = (
+    node: FieldNode | FragmentDefinitionNode | InlineFragmentNode,
+    ancestors: any
+  ): FieldNode | FragmentDefinitionNode | InlineFragmentNode => {
+    if (hasAddedSpread) {
+      return node;
+    }
+
+    const namedPath = getNamedPath(ancestors, node);
+
+    if (namedPath === targetRecordName) {
+      hasAddedSpread = true;
+
+      const newFieldNode: SelectionNode = {
+        kind: "FragmentSpread",
+        name: {
+          kind: "Name",
+          value: fragmentName,
+        },
+      };
+
+      const newSelectionSet: SelectionSetNode = {
+        kind: "SelectionSet",
+        ...node.selectionSet,
+        selections: [...(node.selectionSet?.selections ?? []), newFieldNode],
+      };
+
+      return {
+        ...node,
+        selectionSet: newSelectionSet,
+      };
+    }
+
+    return node;
+  };
+
+  const newSrc = visit(parsedSrc, {
+    FragmentDefinition(node, _a, _b, _c, ancestors) {
+      return resolveNode(node, ancestors);
+    },
+    InlineFragment(node, _a, _b, _c, ancestors) {
+      return resolveNode(node, ancestors);
+    },
+    Field(node, _a, _b, _c, ancestors) {
+      return resolveNode(node, ancestors);
+    },
+  });
+
+  return hasAddedSpread ? newSrc : null;
+}
+
+export function namedTypeToString(type: GraphQLNamedType): string {
+  if (type instanceof GraphQLObjectType) {
+    return "object";
+  } else if (type instanceof GraphQLUnionType) {
+    return "union";
+  } else if (type instanceof GraphQLInterfaceType) {
+    return "interface";
+  } else if (type instanceof GraphQLScalarType) {
+    return "scalar";
+  } else if (type instanceof GraphQLEnumType) {
+    return "enum";
+  } else if (type instanceof GraphQLInputObjectType) {
+    return "input object";
+  }
+
+  return "-";
 }

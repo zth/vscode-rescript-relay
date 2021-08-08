@@ -32,6 +32,7 @@ import {
   CompletionItem,
   CompletionItemKind,
   TextEdit,
+  env,
 } from "vscode";
 
 import {
@@ -85,6 +86,7 @@ import {
   ArgumentNode,
   FragmentDefinitionNode,
   getLocation,
+  GraphQLCompositeType,
 } from "graphql";
 import {
   loadFullSchema,
@@ -118,9 +120,11 @@ import { getPreferredFragmentPropName } from "./utils";
 import { findContext, complete, getSourceLocOfGraphQL } from "./contextUtils";
 import {
   addFieldAtPosition,
+  addFragmentSpreadAtPosition,
   findGraphQLRecordContext,
   findRecordAndModulesFromCompletion,
   GraphQLRecordCtx,
+  namedTypeToString,
 } from "./contextUtilsNoVscode";
 import {
   makeSelectionSet,
@@ -572,6 +576,10 @@ function initProviders(_context: ExtensionContext) {
           );
         }
 
+        graphqlSchemaDocHover.appendMarkdown(
+          ` (${namedTypeToString(positionCtx.type)})`
+        );
+
         if (positionCtx.type.description != null) {
           graphqlSchemaDocHover.appendMarkdown(
             `: _${positionCtx.description}_`
@@ -636,6 +644,34 @@ function initProviders(_context: ExtensionContext) {
       );
 
       const actions = [];
+
+      // Add new fragment here
+      if (
+        positionCtx?.type instanceof GraphQLObjectType ||
+        positionCtx?.type instanceof GraphQLInterfaceType ||
+        positionCtx?.type instanceof GraphQLUnionType
+      ) {
+        const addNewFragmentHere = new CodeAction(
+          `Add new fragment to "${ctx.propName}"`,
+          CodeActionKind.Refactor
+        );
+
+        addNewFragmentHere.command = {
+          title: "Add new fragment component",
+          command: "vscode-rescript-relay.add-new-fragment-component-to-value",
+          arguments: [
+            document.uri,
+            document.getText(),
+            selection,
+            ctx.tag,
+            positionCtx.type,
+            ctx.recordName,
+            ctx.propName,
+          ],
+        };
+
+        actions.push(addNewFragmentHere);
+      }
 
       // Peek fragment
       const peekFragment = new CodeAction(
@@ -1609,6 +1645,138 @@ function initCommands(context: ExtensionContext): void {
         });
 
         await editor.document.save();
+      }
+    ),
+    commands.registerCommand(
+      "vscode-rescript-relay.add-new-fragment-component-to-value",
+      async (
+        uri: Uri,
+        _doc: string,
+        _selection: Range | Selection,
+        tag: GraphQLSourceFromTag,
+        type: GraphQLCompositeType,
+        recordName: string,
+        selectedVariableName: string
+      ) => {
+        const editor = window.activeTextEditor;
+
+        if (!editor) {
+          return;
+        }
+
+        const newComponentName = await window.showInputBox({
+          prompt: "Name of your new component",
+          value: getModuleNameFromFile(uri),
+          validateInput(v: string): string | null {
+            return /^[a-zA-Z0-9_]*$/.test(v)
+              ? null
+              : "Please only use alphanumeric characters and underscores.";
+          },
+        });
+
+        if (!newComponentName) {
+          window.showWarningMessage("Your component must have a name.");
+          return;
+        }
+
+        const copyToClipboard =
+          (await window.showQuickPick(["Yes", "No"], {
+            placeHolder:
+              "Do you want to copy the JSX for using the new component to the clipboard?",
+          })) === "Yes";
+
+        const shouldOpenFileDirectly =
+          (await window.showQuickPick(["Yes", "No"], {
+            placeHolder: "Do you want to open the new file directly?",
+          })) === "Yes";
+
+        const onType = getPreferredFragmentPropName(type.name);
+
+        const fragmentName = `${capitalize(newComponentName)}_${uncapitalize(
+          onType
+        )}`;
+
+        const source = new Source(tag.content);
+        const operationAst = parse(source);
+
+        const newOp = addFragmentSpreadAtPosition(
+          operationAst,
+          recordName,
+          type,
+          fragmentName
+        );
+
+        if (newOp == null) {
+          window.showWarningMessage("Could not add fragment.");
+          return;
+        }
+
+        const updatedOperation = prettify(print(newOp));
+
+        const newFilePath = getNewFilePath(newComponentName);
+
+        const moduleName = `${pascalCase(onType)}Fragment`;
+        const propName = uncapitalize(onType);
+
+        const newFragment = await makeFragment(fragmentName, type.name, [
+          makeFieldSelection("__typename"),
+        ]);
+
+        fs.writeFileSync(
+          newFilePath.fsPath,
+          getFragmentComponentText({
+            fragmentText: newFragment,
+            moduleName,
+            propName,
+          })
+        );
+
+        const newDoc = await workspace.openTextDocument(newFilePath);
+        await newDoc.save();
+
+        const msg = `"${newComponentName}.res" was created with your new fragment.`;
+
+        if (shouldOpenFileDirectly) {
+          window.showTextDocument(newDoc);
+        } else {
+          window.showInformationMessage(msg, "Open file").then((m) => {
+            if (m) {
+              window.showTextDocument(newDoc);
+            }
+          });
+        }
+
+        editor.selection = new Selection(
+          new Position(
+            editor.selection.active.line,
+            editor.selection.active.character
+          ),
+          new Position(
+            editor.selection.active.line,
+            editor.selection.active.character
+          )
+        );
+
+        await editor.edit((b) => {
+          b.replace(
+            new Range(
+              new Position(tag.start.line, tag.start.character),
+              new Position(tag.end.line, tag.end.character)
+            ),
+            restoreOperationPadding(updatedOperation, tag.content)
+          );
+        });
+
+        await editor.document.save();
+
+        if (copyToClipboard) {
+          env.clipboard.writeText(
+            `<${newComponentName} ${propName}=${selectedVariableName}.fragmentRefs />`
+          );
+          window.showInformationMessage(
+            `Code for your new component has been copied to the clipboard.`
+          );
+        }
       }
     ),
     commands.registerCommand("vscode-rescript-relay.add-fragment", () =>
