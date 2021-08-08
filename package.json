@@ -49,6 +49,11 @@
           "default": true,
           "description": "Prefer short names for generated fragments?"
         },
+        "rescript-relay.experimentalFeatures": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable experimental features"
+        },
         "graphql-config.load.rootDir": {
           "type": [
             "string"

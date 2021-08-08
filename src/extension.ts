@@ -116,7 +116,7 @@ import {
   addFragmentHere,
   extractToFragment,
 } from "./createNewFragmentComponentsUtils";
-import { getPreferredFragmentPropName } from "./utils";
+import { experimentalModeEnabled, getPreferredFragmentPropName } from "./utils";
 import { findContext, complete, getSourceLocOfGraphQL } from "./contextUtils";
 import {
   addFieldAtPosition,
@@ -227,6 +227,10 @@ function initProviders(_context: ExtensionContext) {
   // Insert fragments etc
   languages.registerCompletionItemProvider("rescript", {
     async provideCompletionItems(document, selection) {
+      if (!experimentalModeEnabled()) {
+        return null;
+      }
+
       const completion = complete(document, selection);
 
       if (completion != null) {
@@ -336,6 +340,10 @@ function initProviders(_context: ExtensionContext) {
     "rescript",
     {
       async provideCompletionItems(document, selection) {
+        if (!experimentalModeEnabled()) {
+          return null;
+        }
+
         const ctxPos = new Position(selection.line, selection.character - 1);
 
         const ctx = findContext(document, ctxPos);
@@ -451,6 +459,10 @@ function initProviders(_context: ExtensionContext) {
     "rescript",
     {
       async provideCompletionItems(document, selection) {
+        if (!experimentalModeEnabled()) {
+          return null;
+        }
+
         // First, check whether the character before > is - (meaning it's a pipe)
         const posBehindPipe = new Position(
           selection.line,
@@ -515,6 +527,10 @@ function initProviders(_context: ExtensionContext) {
 
   languages.registerHoverProvider("rescript", {
     async provideHover(document, position) {
+      if (!experimentalModeEnabled()) {
+        return null;
+      }
+
       try {
         const ctx = findContext(document, position);
 
@@ -624,7 +640,11 @@ function initProviders(_context: ExtensionContext) {
     async provideCodeActions(
       document,
       selection
-    ): Promise<(CodeAction | Command)[] | undefined> {
+    ): Promise<(CodeAction | Command)[] | undefined | null> {
+      if (!experimentalModeEnabled()) {
+        return null;
+      }
+
       const ctx = findContext(document, selection);
 
       if (ctx == null) {
