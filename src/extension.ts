@@ -115,10 +115,12 @@ import {
   extractToFragment,
 } from "./createNewFragmentComponentsUtils";
 import { getPreferredFragmentPropName } from "./utils";
-import { findContext } from "./contextUtils";
+import { findContext, complete, getSourceLocOfGraphQL } from "./contextUtils";
 import {
   addFieldAtPosition,
   findGraphQLRecordContext,
+  findRecordAndModulesFromCompletion,
+  GraphQLRecordCtx,
 } from "./contextUtilsNoVscode";
 import {
   makeSelectionSet,
@@ -218,6 +220,113 @@ type GraphQLTypeAtPos = {
 };
 
 function initProviders(_context: ExtensionContext) {
+  // Insert fragments etc
+  languages.registerCompletionItemProvider("rescript", {
+    async provideCompletionItems(document, selection) {
+      const completion = complete(document, selection);
+
+      if (completion != null) {
+        const schema = await loadFullSchema();
+
+        if (schema == null) {
+          return null;
+        }
+
+        let operationsInDoc: GraphQLSource[] | null = extractGraphQLSources(
+          document.languageId,
+          document.getText()
+        );
+
+        const cached = new Map<string, GraphQLRecordCtx>();
+
+        const items = completion
+          .map(findRecordAndModulesFromCompletion)
+          .reduce((acc: CompletionItem[], curr) => {
+            if (curr != null) {
+              const targetOp = operationsInDoc?.find(
+                (op) =>
+                  op.type === "TAG" &&
+                  op.content.includes(`fragment ${curr.fragmentName}`)
+              ) as GraphQLSourceFromTag | undefined;
+
+              if (targetOp == null) {
+                return acc;
+              }
+
+              if (cached.get(curr.fragmentName) == null) {
+                const ctx = findGraphQLRecordContext(
+                  targetOp.content,
+                  curr.recordName,
+                  schema
+                );
+
+                if (ctx != null) {
+                  cached.set(curr.fragmentName, ctx);
+                }
+              }
+
+              const ctx = cached.get(curr.fragmentName);
+
+              if (ctx == null) {
+                return acc;
+              }
+
+              const fragmentSpreads = (ctx.astNode?.selectionSet?.selections.filter(
+                (s) =>
+                  s.kind === "FragmentSpread" &&
+                  !s.directives?.some((d) => d.name.value === "inline")
+              ) ?? []) as FragmentSpreadNode[];
+
+              fragmentSpreads.forEach((spreadNode) => {
+                const item = new CompletionItem(
+                  `${curr.label}: ${spreadNode.name.value}`
+                );
+                item.sortText = `zz ${curr.label} ${spreadNode.name.value}`;
+                item.detail = `Component for \`${spreadNode.name.value}\``;
+
+                // @ts-ignore
+                item.__extra = {
+                  label: curr.label,
+                  fragmentName: spreadNode.name.value,
+                };
+
+                acc.push(item);
+              });
+            }
+
+            return acc;
+          }, []);
+
+        // Now fill in all file data
+        const processedItems: (CompletionItem | null)[] = await Promise.all(
+          items.map(async (item) => {
+            const extra: { label: string; fragmentName: string } = (item as any)
+              .__extra;
+
+            const sourceLoc = await getSourceLocOfGraphQL(extra.fragmentName);
+
+            if (sourceLoc == null) {
+              return null;
+            }
+
+            // Infer propname
+            const propName = extra.fragmentName.split("_").pop() ?? extra.label;
+
+            item.insertText = `<${sourceLoc.componentName} ${propName}={${extra.label}.fragmentRefs} />`;
+
+            return item;
+          })
+        );
+
+        return processedItems.length > 0
+          ? (processedItems.filter(Boolean) as CompletionItem[])
+          : null;
+      }
+
+      return null;
+    },
+  });
+
   // Autoinsert GraphQL field completions
   languages.registerCompletionItemProvider(
     "rescript",
@@ -391,6 +500,7 @@ function initProviders(_context: ExtensionContext) {
           item.documentation = new MarkdownString(
             `Collect all \`nodes\` to a non-optional array you can iterate on.`
           );
+          item.preselect = true;
 
           return [item];
         }

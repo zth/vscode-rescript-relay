@@ -1,4 +1,5 @@
 import {
+  runCompletionCommand,
   runHoverCommand,
   runTypeDefinitionCommand,
 } from "./ReScriptEditorSupport";
@@ -12,7 +13,9 @@ import {
   Uri,
 } from "vscode";
 import {
+  CompletionParams,
   HoverParams,
+  TextDocumentIdentifier,
   TypeDefinitionParams,
 } from "vscode-languageserver-protocol";
 import { extractContextFromHover, GqlCtx } from "./contextUtilsNoVscode";
@@ -20,11 +23,17 @@ import * as path from "path";
 import * as fs from "fs";
 import { extractGraphQLSources } from "./findGraphQLSources";
 import { GraphQLSourceFromTag } from "./extensionTypes";
+import { loadRelayConfig } from "./loadSchema";
+import * as lineReader from "line-reader";
 
 const logDebug = (txt: string) => {
   return;
   window.showInformationMessage(txt);
 };
+
+export const sourceLocExtractor = new RegExp(
+  /(?<=\/\* @sourceLoc )[A-Za-z_.0-9]+(?= \*\/)/g
+);
 
 function getHoverCtx(
   selection: Range | Selection | Position,
@@ -176,6 +185,46 @@ function getTypeDefCtx(
   return extractContextFromTypeDefinition(position, document, uri, range);
 }
 
+export function complete(document: TextDocument, selection: Position) {
+  const extensionPath = extensions.getExtension("chenglou92.rescript-vscode")
+    ?.extensionPath;
+
+  if (!extensionPath) {
+    logDebug(`Bailing because no extension path`);
+    return null;
+  }
+
+  let r = null;
+
+  try {
+    const params: CompletionParams = {
+      position: selection,
+      textDocument: TextDocumentIdentifier.create(document.uri.toString()),
+    };
+
+    const res = runCompletionCommand(
+      {
+        jsonrpc: "2.0",
+        id: Math.random(),
+        method: "textDocument/completion",
+        params,
+      },
+      document.getText(),
+      extensionPath
+      // @ts-ignore
+    ).result as null | { label: string; detail: string }[];
+
+    if (res != null) {
+      r = res;
+    }
+  } catch (e) {
+    logDebug(`Bailing because analysis command failed`);
+    return null;
+  }
+
+  return r;
+}
+
 export function findContext(
   document: TextDocument,
   selection: Range | Selection | Position
@@ -240,4 +289,44 @@ export function findContext(
     tag,
     ...theCtx,
   };
+}
+
+export async function getSourceLocOfGraphQL(
+  opName: string
+): Promise<{ fileName: string; componentName: string } | null> {
+  const relayConfig = await loadRelayConfig();
+
+  if (relayConfig == null) {
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    let i = 0;
+
+    lineReader.eachLine(
+      path.resolve(
+        path.join(relayConfig.artifactDirectory, `${opName}_graphql.res`)
+      ),
+      (line) => {
+        i += 1;
+
+        const sourceLoc = line.match(sourceLocExtractor)?.[0];
+        if (sourceLoc != null) {
+          resolve({
+            fileName: sourceLoc,
+            componentName: `${sourceLoc[0].toUpperCase()}${sourceLoc.slice(
+              1,
+              sourceLoc.length - 4
+            )}`,
+          });
+          return false;
+        }
+
+        if (i > 3) {
+          resolve(null);
+          return false;
+        }
+      }
+    );
+  });
 }

@@ -2,6 +2,7 @@ import { buildSchema } from "graphql";
 import {
   extractContextFromHover,
   findGraphQLRecordContext,
+  findRecordAndModulesFromCompletion,
 } from "../contextUtilsNoVscode";
 
 describe("extractContextFromHover", () => {
@@ -14,6 +15,19 @@ describe("extractContextFromHover", () => {
     ).toEqual({
       fragmentName: "SingleTicket_ticket",
       recordName: "fragment",
+      propName: "x",
+    });
+  });
+
+  it("finds the context of a hover string from the ReScript VSCode extension, alternate formatting", () => {
+    expect(
+      extractContextFromHover(
+        "x",
+        '```rescript"TodoList_query_graphql-ReasonReactExamples".Types.fragment_todosConnection_edges_node\n        type fragment_todosConnection_edges_node = {\n          id: string,\n          fragmentRefs: RescriptRelay.fragmentRefs<\n            [#SingleTodo_todoItem],\n          >,\n        }```'
+      )
+    ).toEqual({
+      fragmentName: "TodoList_query",
+      recordName: "fragment_todosConnection_edges_node",
       propName: "x",
     });
   });
@@ -141,5 +155,45 @@ describe("findGraphQLRecordContext", () => {
     expect(ctx?.fieldTypeAsString).toBe("ID!");
 
     expect(ctx?.description).toBe(null);
+  });
+});
+
+describe("findRecordAndModulesFromCompletion", () => {
+  it("handles completion items", () => {
+    expect(
+      findRecordAndModulesFromCompletion({
+        label: "user",
+        detail:
+          "ReasonReactExamples.SingleTicket_ticket_graphql.Types.fragment_assignee_User",
+      })
+    ).toEqual({
+      label: "user",
+      module: "SingleTicket_ticket_graphql",
+      fragmentName: "SingleTicket_ticket",
+      recordName: "fragment_assignee_User",
+    });
+  });
+
+  it("handles completion items with differen formatting", () => {
+    expect(
+      findRecordAndModulesFromCompletion({
+        label: "todoItem",
+        detail: `\"TodoList_query_graphql-ReasonReactExamples".Types.fragment_todosConnection_edges_node`,
+      })
+    ).toEqual({
+      label: "todoItem",
+      module: "TodoList_query_graphql",
+      fragmentName: "TodoList_query",
+      recordName: "fragment_todosConnection_edges_node",
+    });
+  });
+
+  it("ignores irrelevant stuff", () => {
+    expect(
+      findRecordAndModulesFromCompletion({
+        label: "user",
+        detail: "string",
+      })
+    ).toEqual(null);
   });
 });

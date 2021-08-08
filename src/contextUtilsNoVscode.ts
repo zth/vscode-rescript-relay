@@ -21,27 +21,34 @@ import {
 } from "graphql";
 import { makeFirstFieldSelection } from "./graphqlUtilsNoVscode";
 
-// const fragmentRefsExtractor = /\.fragmentRefs<[\s\S.]+\[([#A-Za-z_ \s\S|]+)\]/g;
-
-/*function extractFragmentRefs(src: string) {
-  let res;
-  let fragmentRefs;
-
-  while ((res = opFragmentNameExtractorRegexp.exec(src)) !== null) {
-    fragmentRefs = res[1] ?? null;
-  }
-
-  if (fragmentRefs == null) {
-    return null;
-  }
-
-  return fragmentRefs.split(` | `);
-}*/
-
 export type GqlCtx = {
   recordName: string;
   fragmentName: string;
   propName: string;
+};
+
+export const findRecordAndModulesFromCompletion = (completionItem: {
+  label: string;
+  detail: string;
+}): null | {
+  label: string;
+  module: string;
+  fragmentName: string;
+  recordName: string;
+} => {
+  const extracted = completionItem.detail.match(
+    /(\w+)_graphql(?:.|(?:-\w+".))Types.(\w+)/
+  );
+
+  if (extracted != null && extracted.length === 3) {
+    return {
+      label: completionItem.label,
+      module: `${extracted[1]}_graphql`,
+      fragmentName: extracted[1],
+      recordName: extracted[2],
+    };
+  }
+  return null;
 };
 
 export function extractContextFromHover(
@@ -53,7 +60,7 @@ export function extractContextFromHover(
   let fragmentName: string | null = null;
   let recordName: string | null = null;
 
-  const opFragmentNameExtractorRegexp = /\w+\.(\w+)_graphql.Types\.(\w+).*/g;
+  const opFragmentNameExtractorRegexp = /(\w+)_graphql(?:.|(?:-\w+".))Types.(\w+)/g;
 
   while ((res = opFragmentNameExtractorRegexp.exec(hoverContents)) !== null) {
     fragmentName = res[1] ?? null;
@@ -107,11 +114,7 @@ const getNamedPath = (
   return ["fragment", ...paths, getNameForNode(node)].filter(Boolean).join("_");
 };
 
-export const findGraphQLRecordContext = (
-  src: string,
-  recordName: string,
-  schema: GraphQLSchema
-): null | {
+export interface GraphQLRecordCtx {
   type: GraphQLCompositeType;
   description: string | null;
   fieldTypeAsString: string;
@@ -119,7 +122,13 @@ export const findGraphQLRecordContext = (
   endLoc?: SourceLocation | null;
   astNode: FragmentDefinitionNode | FieldNode | InlineFragmentNode | null;
   parsedSource: DocumentNode;
-} => {
+}
+
+export const findGraphQLRecordContext = (
+  src: string,
+  recordName: string,
+  schema: GraphQLSchema
+): null | GraphQLRecordCtx => {
   const parsed = parse(src);
 
   let typeOfThisThing;
