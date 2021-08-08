@@ -49,6 +49,11 @@
           "default": true,
           "description": "Prefer short names for generated fragments?"
         },
+        "rescript-relay.experimentalFeatures": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable experimental features"
+        },
         "graphql-config.load.rootDir": {
           "type": [
             "string"
@@ -148,6 +153,7 @@
     "graphql-language-service-types": "1.8.2",
     "graphql-language-service-utils": "2.5.3",
     "kind-of": "6.0.3",
+    "line-reader": "^0.4.0",
     "locate-character": "2.0.5",
     "pascal-case": "3.1.2",
     "prettier": "2.2.1",
@@ -160,6 +166,7 @@
   "devDependencies": {
     "@types/codemirror": "^5.60.0",
     "@types/jest": "26.0.20",
+    "@types/line-reader": "^0.0.34",
     "@types/node": "14.14.33",
     "@types/prettier": "2.2.2",
     "@types/semver": "7.3.4",

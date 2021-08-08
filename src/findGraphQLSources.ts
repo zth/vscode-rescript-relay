@@ -14,13 +14,33 @@ export let makeExtractTagsFromSource = (
 ): Array<GraphQLSourceFromTag> => {
   const locator = getLocator(text);
   const sources: Array<GraphQLSourceFromTag> = [];
+  const asLines = text.split("\n");
+
   let result;
   while ((result = regexp.exec(text)) !== null) {
     let start = locator(result.index);
     let end = locator(result.index + result[0].length);
 
+    // Figure out the module name. Given the formatter, it'll be on the same or
+    // previous line.
+    let moduleName = "UnknownModule";
+
+    const matchLineWithModuleName = (line: string) =>
+      line.match(/module (\w+) =/)?.[1];
+
+    if (asLines[start.line]?.includes("module ")) {
+      moduleName =
+        matchLineWithModuleName(asLines[start.line]) ?? "UnknownModule";
+    }
+
+    if (asLines[start.line - 1]?.includes("module ")) {
+      moduleName =
+        matchLineWithModuleName(asLines[start.line - 1]) ?? "UnknownModule";
+    }
+
     sources.push({
       type: "TAG",
+      moduleName,
       content: result[0],
       start: {
         line: start.line,
@@ -36,16 +56,9 @@ export let makeExtractTagsFromSource = (
   return sources;
 };
 
-export const jsGraphQLTagsRegexp = new RegExp(
-  /(?<=(graphql|gql|graphql\.experimental)`)[.\s\S]+?(?=`)/g
-);
 export const rescriptFileFilterRegexp = new RegExp(/(\%relay\()/g);
 export const rescriptGraphQLTagsRegexp = new RegExp(
   /(?<=\%relay\([\s]*`)[\s\S.]+?(?=`[\s]*\))/g
-);
-
-const extractGraphQLSourceFromJs = makeExtractTagsFromSource(
-  jsGraphQLTagsRegexp
 );
 
 export const extractGraphQLSourceFromReScript = makeExtractTagsFromSource(
@@ -64,12 +77,6 @@ export function extractGraphQLSources(
           content: document,
         },
       ];
-    case "javascript":
-    case "javascriptreact":
-    case "typescript":
-    case "typescriptreact":
-    case "vue":
-      return extractGraphQLSourceFromJs(document);
     case "rescript":
       return extractGraphQLSourceFromReScript(document);
     default:

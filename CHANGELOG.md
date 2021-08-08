@@ -1,5 +1,7 @@
 ## master
 
+- A ton of new features, currently hidden by a "experimental features" settings in the extension settings. Enable it and try them out ;) Documentation etc will follow in the upcoming releases as the experiemental features stabilize.
+
 ## 0.5.5
 
 - Fix issues with the extension accidentally creating Relay compiler processes that it doesn't also shut down properly. Shout out to @mellson.

@@ -19,3 +19,7 @@ export function getPreferredFragmentPropName(onType: string): string {
 
   return result;
 }
+
+export const experimentalModeEnabled = () =>
+  workspace.getConfiguration("rescript-relay").get("experimentalFeatures") ===
+  true;

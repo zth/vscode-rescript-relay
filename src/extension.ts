@@ -26,6 +26,13 @@ import {
   Diagnostic,
   Disposable as VSCodeDisposable,
   StatusBarItem,
+  Location,
+  Hover,
+  MarkdownString,
+  CompletionItem,
+  CompletionItemKind,
+  TextEdit,
+  env,
 } from "vscode";
 
 import {
@@ -78,6 +85,8 @@ import {
   OperationDefinitionNode,
   ArgumentNode,
   FragmentDefinitionNode,
+  getLocation,
+  GraphQLCompositeType,
 } from "graphql";
 import {
   loadFullSchema,
@@ -96,20 +105,32 @@ import {
   makeArgumentDefinitionVariable,
   findPath,
   makeArgument,
-  makeSelectionSet,
-  makeFieldSelection,
-  getFirstField,
   makeFragment,
   makeConnectionsVariable,
   pickTypeForFragment,
   getFragmentComponentText,
   getNewFilePath,
+  getAdjustedPosition,
 } from "./graphqlUtils";
 import {
   addFragmentHere,
   extractToFragment,
 } from "./createNewFragmentComponentsUtils";
-import { getPreferredFragmentPropName } from "./utils";
+import { experimentalModeEnabled, getPreferredFragmentPropName } from "./utils";
+import { findContext, complete, getSourceLocOfGraphQL } from "./contextUtils";
+import {
+  addFieldAtPosition,
+  addFragmentSpreadAtPosition,
+  findGraphQLRecordContext,
+  findRecordAndModulesFromCompletion,
+  GraphQLRecordCtx,
+  namedTypeToString,
+} from "./contextUtilsNoVscode";
+import {
+  makeSelectionSet,
+  makeFieldSelection,
+  getFirstField,
+} from "./graphqlUtilsNoVscode";
 
 let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
 
@@ -202,112 +223,526 @@ type GraphQLTypeAtPos = {
   parentTypeName: string;
 };
 
-// const _getOpNameRegex = new RegExp(/[A-Za-z0-9_]*(?=_graphql)/g);
-// const _getPathRegex = new RegExp(/Types\.[A-Za-z0-9_]*/g);
-
-function initHoverProviders(_context: ExtensionContext) {
-  /*languages.registerHoverProvider("rescript", {
-    provideHover(document, position) {
-      const extensionPath = extensions.getExtension(
-        "chenglou92.rescript-vscode"
-      )?.extensionPath;
-
-      if (!extensionPath) {
+function initProviders(_context: ExtensionContext) {
+  // Insert fragments etc
+  languages.registerCompletionItemProvider("rescript", {
+    async provideCompletionItems(document, selection) {
+      if (!experimentalModeEnabled()) {
         return null;
       }
 
-      return new Promise((resolve, _reject) => {
-        runDumpCommand(
-          {
-            fileUri: document.uri.toString(),
-            position,
-          },
-          (res) => {
-            const hover = res?.hover;
+      const completion = complete(document, selection);
 
-            if (!hover) {
-              resolve(null);
-              return;
-            }
+      if (completion != null) {
+        const schema = await loadFullSchema();
 
-            const targetOpName = getOpNameRegex.exec(hover)?.[0];
-            const targetPath = getPathRegex
-              .exec(hover)?.[0]
-              .replace("Types.", "");
+        if (schema == null) {
+          return null;
+        }
 
-            if (!targetOpName || !targetPath) {
-              resolve(null);
-              return;
-            }
+        let operationsInDoc: GraphQLSource[] | null = extractGraphQLSources(
+          document.languageId,
+          document.getText()
+        );
 
-            const allOperationsInDoc = extractGraphQLSources(
-              "rescript",
-              document.getText()
-            );
+        const cached = new Map<string, GraphQLRecordCtx>();
 
-            if (!allOperationsInDoc) {
-              resolve(null);
-              return;
-            }
+        const items = completion
+          .map(findRecordAndModulesFromCompletion)
+          .reduce((acc: CompletionItem[], curr) => {
+            if (curr != null) {
+              const targetOp = operationsInDoc?.find(
+                (op) =>
+                  op.type === "TAG" &&
+                  op.content.includes(`fragment ${curr.fragmentName}`)
+              ) as GraphQLSourceFromTag | undefined;
 
-            let targetNode:
-              | FragmentDefinitionNode
-              | OperationDefinitionNode
-              | FieldNode
-              | null = null;
+              if (targetOp == null) {
+                return acc;
+              }
 
-            for (const o of allOperationsInDoc) {
-              if (o.type === "TAG") {
-                const parsed = parse(o.content);
-                const targetDef = parsed.definitions[0];
+              if (cached.get(curr.fragmentName) == null) {
+                const ctx = findGraphQLRecordContext(
+                  targetOp.content,
+                  curr.recordName,
+                  schema
+                );
 
-                if (targetDef) {
-                  if (
-                    (targetDef.kind === "FragmentDefinition" &&
-                      targetDef.name.value === targetOpName) ||
-                    (targetDef.kind === "OperationDefinition" &&
-                      targetDef.name?.value === targetOpName)
-                  ) {
-                    targetNode = targetDef as
-                      | FragmentDefinitionNode
-                      | OperationDefinitionNode;
-
-                    // Remove the first part of the path, we know it's the root
-                    let p = targetPath
-                      .split("_")
-                      .slice(1)
-                      .join("_");
-
-                    while (p !== "") {
-                      const nextPathNode = targetNode.selectionSet?.selections.find(
-                        (s) => s.kind === "Field" && p.startsWith(s.name.value)
-                      ) as FieldNode | undefined;
-
-                      if (nextPathNode) {
-                        p = p.slice(nextPathNode.name.value.length);
-                        targetNode = nextPathNode;
-                      } else {
-                        p = "";
-                      }
-                    }
-                  }
+                if (ctx != null) {
+                  cached.set(curr.fragmentName, ctx);
                 }
               }
+
+              const ctx = cached.get(curr.fragmentName);
+
+              if (ctx == null) {
+                return acc;
+              }
+
+              const fragmentSpreads = (ctx.astNode?.selectionSet?.selections.filter(
+                (s) =>
+                  s.kind === "FragmentSpread" &&
+                  !s.directives?.some((d) => d.name.value === "inline")
+              ) ?? []) as FragmentSpreadNode[];
+
+              fragmentSpreads.forEach((spreadNode) => {
+                const item = new CompletionItem(
+                  `${curr.label}: ${spreadNode.name.value}`
+                );
+                item.sortText = `zz ${curr.label} ${spreadNode.name.value}`;
+                item.detail = `Component for \`${spreadNode.name.value}\``;
+
+                // @ts-ignore
+                item.__extra = {
+                  label: curr.label,
+                  fragmentName: spreadNode.name.value,
+                };
+
+                acc.push(item);
+              });
             }
 
-            resolve(
-              new Hover(
-                new MarkdownString(
-                  JSON.stringify({ fieldName: targetNode?.name?.value ?? "-" })
-                )
-              )
-            );
-          },
-          extensionPath
+            return acc;
+          }, []);
+
+        // Now fill in all file data
+        const processedItems: (CompletionItem | null)[] = await Promise.all(
+          items.map(async (item) => {
+            const extra: { label: string; fragmentName: string } = (item as any)
+              .__extra;
+
+            const sourceLoc = await getSourceLocOfGraphQL(extra.fragmentName);
+
+            if (sourceLoc == null) {
+              return null;
+            }
+
+            // Infer propname
+            const propName = extra.fragmentName.split("_").pop() ?? extra.label;
+
+            item.insertText = `<${sourceLoc.componentName} ${propName}={${extra.label}.fragmentRefs} />`;
+
+            return item;
+          })
         );
-      });
+
+        return processedItems.length > 0
+          ? (processedItems.filter(Boolean) as CompletionItem[])
+          : null;
+      }
+
+      return null;
     },
-  });*/
+  });
+
+  // Autoinsert GraphQL field completions
+  languages.registerCompletionItemProvider(
+    "rescript",
+    {
+      async provideCompletionItems(document, selection) {
+        if (!experimentalModeEnabled()) {
+          return null;
+        }
+
+        const ctxPos = new Position(selection.line, selection.character - 1);
+
+        const ctx = findContext(document, ctxPos);
+
+        if (ctx == null) {
+          return;
+        }
+
+        const schema = await loadFullSchema();
+
+        if (schema == null) {
+          return;
+        }
+
+        const positionCtx = findGraphQLRecordContext(
+          ctx.tag.content,
+          ctx.recordName,
+          schema
+        );
+
+        if (positionCtx == null) {
+          return;
+        }
+
+        if (positionCtx.type instanceof GraphQLObjectType) {
+          const existingFieldSelectionNames =
+            positionCtx.astNode?.selectionSet?.selections
+              .filter((s) => s.kind === "Field")
+              .map((s) => (s.kind === "Field" ? s.name.value : "")) ?? [];
+
+          const fields = Object.values(positionCtx.type.getFields()).filter(
+            (field) => !existingFieldSelectionNames.includes(field.name)
+          );
+
+          return fields.map((field) => {
+            const key = field.name;
+            const item = new CompletionItem(key);
+            item.kind = CompletionItemKind.Constant;
+
+            item.sortText = `zzzzz ${key}`;
+            const docs = new MarkdownString(
+              `${field.type.toString()}: \`${key}\`\n`
+            );
+
+            if (field.description != null) {
+              docs.appendMarkdown(`\n_${field.description}_\n`);
+            }
+
+            docs.appendMarkdown(
+              `\nAdd field \`${key}\` to \`${ctx.fragmentName}\` and use it`
+            );
+            item.documentation = docs;
+
+            // @ts-ignore
+            item.__extra = {
+              ctx,
+              positionCtx,
+            };
+
+            return item;
+          });
+        }
+      },
+
+      // Leverage resolve as we don't want to calculate changed operations for
+      // every single item in the completion list.
+      resolveCompletionItem(item) {
+        const key = item.label;
+
+        item.additionalTextEdits = [
+          TextEdit.replace(
+            new Range(
+              new Position(
+                // @ts-ignore
+                item.__extra.ctx.tag.start.line,
+                // @ts-ignore
+                item.__extra.ctx.tag.start.character
+              ),
+              new Position(
+                // @ts-ignore
+                item.__extra.ctx.tag.end.line,
+                // @ts-ignore
+                item.__extra.ctx.tag.end.character
+              )
+            ),
+            restoreOperationPadding(
+              prettify(
+                print(
+                  addFieldAtPosition(
+                    // @ts-ignore
+                    item.__extra.positionCtx.parsedSource,
+                    // @ts-ignore
+                    item.__extra.ctx.recordName,
+                    // @ts-ignore
+                    item.__extra.positionCtx.type,
+                    key
+                  )
+                )
+              ),
+              // @ts-ignore
+              item.__extra.ctx.tag.content
+            )
+          ),
+        ];
+        return item;
+      },
+    },
+    "."
+  );
+
+  // Handle pipe completions
+  languages.registerCompletionItemProvider(
+    "rescript",
+    {
+      async provideCompletionItems(document, selection) {
+        if (!experimentalModeEnabled()) {
+          return null;
+        }
+
+        // First, check whether the character before > is - (meaning it's a pipe)
+        const posBehindPipe = new Position(
+          selection.line,
+          selection.character - 2
+        );
+
+        const char = document.getText(
+          new Range(
+            posBehindPipe,
+            new Position(selection.line, selection.character - 1)
+          )
+        );
+
+        if (char !== "-") {
+          return [];
+        }
+
+        const ctxPos = posBehindPipe;
+
+        const ctx = findContext(document, ctxPos);
+
+        if (ctx == null) {
+          return;
+        }
+
+        const schema = await loadFullSchema();
+
+        if (schema == null) {
+          return;
+        }
+
+        const positionCtx = findGraphQLRecordContext(
+          ctx.tag.content,
+          ctx.recordName,
+          schema
+        );
+
+        if (positionCtx == null) {
+          return;
+        }
+
+        if (
+          positionCtx.astNode?.kind === "Field" &&
+          positionCtx.astNode.directives?.some(
+            (d) => d.name.value === "connection"
+          )
+        ) {
+          const item = new CompletionItem(
+            `${ctx.tag.moduleName}.getConnectionNodes`
+          );
+          item.documentation = new MarkdownString(
+            `Collect all \`nodes\` to a non-optional array you can iterate on.`
+          );
+          item.preselect = true;
+
+          return [item];
+        }
+      },
+    },
+    ">"
+  );
+
+  languages.registerHoverProvider("rescript", {
+    async provideHover(document, position) {
+      if (!experimentalModeEnabled()) {
+        return null;
+      }
+
+      try {
+        const ctx = findContext(document, position);
+
+        if (ctx == null) {
+          return;
+        }
+
+        const schema = await loadFullSchema();
+
+        if (schema == null) {
+          return;
+        }
+
+        const positionCtx = findGraphQLRecordContext(
+          ctx.tag.content,
+          ctx.recordName,
+          schema
+        );
+
+        if (positionCtx == null) {
+          return;
+        }
+
+        const relayConfig = await loadRelayConfig();
+
+        if (relayConfig == null) {
+          return;
+        }
+
+        const hovers: MarkdownString[] = [];
+
+        const type = positionCtx.type;
+
+        /**
+         * Handle schema documentation
+         */
+        let graphqlSchemaDocHover = new MarkdownString();
+        graphqlSchemaDocHover.isTrusted = true;
+
+        const astNode = type.astNode;
+
+        if (astNode != null && astNode.loc != null) {
+          const startLoc = getLocation(astNode.loc.source, astNode.loc.start);
+
+          const openGraphQLSchemaArgs = [startLoc.line, startLoc.line];
+
+          const openGraphQLSchemaCommand = Uri.parse(
+            `command:vscode-rescript-relay.open-graphql-schema?${encodeURIComponent(
+              JSON.stringify(openGraphQLSchemaArgs)
+            )}`
+          );
+
+          graphqlSchemaDocHover.appendMarkdown(
+            `[${positionCtx.fieldTypeAsString}](${openGraphQLSchemaCommand})`
+          );
+        } else {
+          graphqlSchemaDocHover.appendMarkdown(
+            `${positionCtx.fieldTypeAsString}`
+          );
+        }
+
+        graphqlSchemaDocHover.appendMarkdown(
+          ` (${namedTypeToString(positionCtx.type)})`
+        );
+
+        if (positionCtx.type.description != null) {
+          graphqlSchemaDocHover.appendMarkdown(
+            `: _${positionCtx.description}_`
+          );
+        }
+
+        hovers.push(graphqlSchemaDocHover);
+
+        /**
+         * Handle contextual navigation
+         */
+
+        const startPos = getAdjustedPosition(ctx.tag, positionCtx?.startLoc);
+
+        const goToGraphQLDefinitionArgs = [
+          document.uri,
+          startPos.line,
+          startPos.character,
+        ];
+
+        const goToGraphQLDefinitionCommand = Uri.parse(
+          `command:vscode-rescript-relay.goto-pos-in-doc?${encodeURIComponent(
+            JSON.stringify(goToGraphQLDefinitionArgs)
+          )}`
+        );
+
+        let graphqlDefinitionHover = new MarkdownString(
+          `Go to definition of \`${ctx.propName}\` in [${ctx.fragmentName}](${goToGraphQLDefinitionCommand})`
+        );
+        graphqlDefinitionHover.isTrusted = true;
+
+        hovers.push(graphqlDefinitionHover);
+
+        return new Hover(hovers);
+      } catch (e) {
+        window.showInformationMessage(e.message);
+      }
+    },
+  });
+
+  languages.registerCodeActionsProvider("rescript", {
+    async provideCodeActions(
+      document,
+      selection
+    ): Promise<(CodeAction | Command)[] | undefined | null> {
+      if (!experimentalModeEnabled()) {
+        return null;
+      }
+
+      const ctx = findContext(document, selection);
+
+      if (ctx == null) {
+        return;
+      }
+
+      const schema = await loadFullSchema();
+
+      if (schema == null) {
+        return;
+      }
+
+      const positionCtx = findGraphQLRecordContext(
+        ctx.tag.content,
+        ctx.recordName,
+        schema
+      );
+
+      const actions = [];
+
+      // Add new fragment here
+      if (
+        positionCtx?.type instanceof GraphQLObjectType ||
+        positionCtx?.type instanceof GraphQLInterfaceType ||
+        positionCtx?.type instanceof GraphQLUnionType
+      ) {
+        const addNewFragmentHere = new CodeAction(
+          `Add new fragment to "${ctx.propName}"`,
+          CodeActionKind.Refactor
+        );
+
+        addNewFragmentHere.command = {
+          title: "Add new fragment component",
+          command: "vscode-rescript-relay.add-new-fragment-component-to-value",
+          arguments: [
+            document.uri,
+            document.getText(),
+            selection,
+            ctx.tag,
+            positionCtx.type,
+            ctx.recordName,
+            ctx.propName,
+          ],
+        };
+
+        actions.push(addNewFragmentHere);
+      }
+
+      // Peek fragment
+      const peekFragment = new CodeAction(
+        `Peek this value in "${ctx.fragmentName}"`,
+        CodeActionKind.Empty
+      );
+
+      peekFragment.command = {
+        title: "Peek definition",
+        command: "editor.action.peekLocations",
+        arguments: [
+          document.uri,
+          selection.start,
+          [
+            new Location(
+              document.uri,
+              new Range(
+                getAdjustedPosition(ctx.tag, positionCtx?.startLoc),
+                getAdjustedPosition(ctx.tag, positionCtx?.endLoc)
+              )
+            ),
+          ],
+          "peek",
+        ],
+      };
+
+      actions.push(peekFragment);
+
+      // Go to fragment
+      const goToFragment = new CodeAction(
+        `Go to definition of "${ctx.fragmentName}"`,
+        CodeActionKind.Empty
+      );
+
+      goToFragment.command = {
+        title: "Go to definition",
+        command: "editor.action.goToLocations",
+        arguments: [
+          document.uri,
+          getAdjustedPosition(ctx.tag, positionCtx?.startLoc),
+          [],
+          "goto",
+        ],
+      };
+
+      actions.push(goToFragment);
+
+      return actions;
+    },
+  });
+
   languages.registerCodeActionsProvider("rescript", {
     async provideCodeActions(
       document,
@@ -1232,6 +1667,138 @@ function initCommands(context: ExtensionContext): void {
         await editor.document.save();
       }
     ),
+    commands.registerCommand(
+      "vscode-rescript-relay.add-new-fragment-component-to-value",
+      async (
+        uri: Uri,
+        _doc: string,
+        _selection: Range | Selection,
+        tag: GraphQLSourceFromTag,
+        type: GraphQLCompositeType,
+        recordName: string,
+        selectedVariableName: string
+      ) => {
+        const editor = window.activeTextEditor;
+
+        if (!editor) {
+          return;
+        }
+
+        const newComponentName = await window.showInputBox({
+          prompt: "Name of your new component",
+          value: getModuleNameFromFile(uri),
+          validateInput(v: string): string | null {
+            return /^[a-zA-Z0-9_]*$/.test(v)
+              ? null
+              : "Please only use alphanumeric characters and underscores.";
+          },
+        });
+
+        if (!newComponentName) {
+          window.showWarningMessage("Your component must have a name.");
+          return;
+        }
+
+        const copyToClipboard =
+          (await window.showQuickPick(["Yes", "No"], {
+            placeHolder:
+              "Do you want to copy the JSX for using the new component to the clipboard?",
+          })) === "Yes";
+
+        const shouldOpenFileDirectly =
+          (await window.showQuickPick(["Yes", "No"], {
+            placeHolder: "Do you want to open the new file directly?",
+          })) === "Yes";
+
+        const onType = getPreferredFragmentPropName(type.name);
+
+        const fragmentName = `${capitalize(newComponentName)}_${uncapitalize(
+          onType
+        )}`;
+
+        const source = new Source(tag.content);
+        const operationAst = parse(source);
+
+        const newOp = addFragmentSpreadAtPosition(
+          operationAst,
+          recordName,
+          type,
+          fragmentName
+        );
+
+        if (newOp == null) {
+          window.showWarningMessage("Could not add fragment.");
+          return;
+        }
+
+        const updatedOperation = prettify(print(newOp));
+
+        const newFilePath = getNewFilePath(newComponentName);
+
+        const moduleName = `${pascalCase(onType)}Fragment`;
+        const propName = uncapitalize(onType);
+
+        const newFragment = await makeFragment(fragmentName, type.name, [
+          makeFieldSelection("__typename"),
+        ]);
+
+        fs.writeFileSync(
+          newFilePath.fsPath,
+          getFragmentComponentText({
+            fragmentText: newFragment,
+            moduleName,
+            propName,
+          })
+        );
+
+        const newDoc = await workspace.openTextDocument(newFilePath);
+        await newDoc.save();
+
+        const msg = `"${newComponentName}.res" was created with your new fragment.`;
+
+        if (shouldOpenFileDirectly) {
+          window.showTextDocument(newDoc);
+        } else {
+          window.showInformationMessage(msg, "Open file").then((m) => {
+            if (m) {
+              window.showTextDocument(newDoc);
+            }
+          });
+        }
+
+        editor.selection = new Selection(
+          new Position(
+            editor.selection.active.line,
+            editor.selection.active.character
+          ),
+          new Position(
+            editor.selection.active.line,
+            editor.selection.active.character
+          )
+        );
+
+        await editor.edit((b) => {
+          b.replace(
+            new Range(
+              new Position(tag.start.line, tag.start.character),
+              new Position(tag.end.line, tag.end.character)
+            ),
+            restoreOperationPadding(updatedOperation, tag.content)
+          );
+        });
+
+        await editor.document.save();
+
+        if (copyToClipboard) {
+          env.clipboard.writeText(
+            `<${newComponentName} ${propName}=${selectedVariableName}.fragmentRefs />`
+          );
+          window.showInformationMessage(
+            `Code for your new component has been copied to the clipboard.`
+          );
+        }
+      }
+    ),
     commands.registerCommand("vscode-rescript-relay.add-fragment", () =>
       addGraphQLComponent("Fragment")
     ),
@@ -1301,6 +1868,41 @@ function initCommands(context: ExtensionContext): void {
     ),
     commands.registerCommand("vscode-rescript-relay.add-subscription", () =>
       addGraphQLComponent("Subscription")
+    ),
+    commands.registerCommand(
+      "vscode-rescript-relay.open-graphql-schema",
+      async (startLine: number, endLine: number) => {
+        const relayConfig = await loadRelayConfig();
+
+        if (relayConfig == null) {
+          return;
+        }
+
+        const schemaTextDoc = await workspace.openTextDocument(
+          relayConfig.schema
+        );
+
+        await window.showTextDocument(schemaTextDoc, {
+          selection: new Range(
+            new Position(startLine, 0),
+            new Position(endLine, 0)
+          ),
+        });
+      }
+    ),
+    commands.registerCommand(
+      "vscode-rescript-relay.goto-pos-in-doc",
+      async (rawUri: string, line: number, char: number) => {
+        const uri = Uri.parse(rawUri);
+
+        await commands.executeCommand(
+          "editor.action.goToLocations",
+          uri,
+          new Position(line, char),
+          [],
+          "goto"
+        );
+      }
     ),
     commands.registerCommand(
       "vscode-rescript-relay.wrap-in-suspense-boundary",
@@ -1464,7 +2066,7 @@ export async function activate(context: ExtensionContext) {
 
   await initClient();
   initCommands(context);
-  initHoverProviders(context);
+  initProviders(context);
 
   const schemaWatcher = workspace.createFileSystemWatcher("**/*.graphql");
 
