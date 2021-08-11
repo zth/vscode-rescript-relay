@@ -611,7 +611,7 @@ function initProviders(_context: ExtensionContext) {
         const startPos = getAdjustedPosition(ctx.tag, positionCtx?.startLoc);
 
         const goToGraphQLDefinitionArgs = [
-          document.uri,
+          Uri.parse(ctx.sourceFilePath),
           startPos.line,
           startPos.character,
         ];
