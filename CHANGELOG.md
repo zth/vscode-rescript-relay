@@ -1,5 +1,7 @@
 ## master
 
+- Code action for adding `@connection`.
+
 ## 0.6.0
 
 - A ton of new features, currently hidden by a "experimental features" settings in the extension settings. Enable it and try them out ;) Documentation etc will follow in the upcoming releases as the experiemental features stabilize.

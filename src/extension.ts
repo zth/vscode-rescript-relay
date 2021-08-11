@@ -1010,6 +1010,54 @@ function initProviders(_context: ExtensionContext) {
           );
 
           actions.push(addPagination);
+
+          // Add @connection
+          const addConnectionDirective = new CodeAction(
+            `Add @connection to "${state.name}"`,
+            CodeActionKind.RefactorRewrite
+          );
+
+          addConnectionDirective.edit = makeReplaceOperationEdit(
+            document.uri,
+            selectedOp,
+            visit(parsedOp, {
+              Field(node) {
+                return runOnNodeAtPos(source, node, startPos, (n) => ({
+                  ...addDirectiveToNode(n, "connection", [
+                    {
+                      kind: "Argument",
+                      name: {
+                        kind: "Name",
+                        value: "key",
+                      },
+                      value: {
+                        kind: "StringValue",
+                        value: findPath(state).reverse().join("_"),
+                      },
+                    },
+                  ]),
+                  arguments: [
+                    makeArgument("first", {
+                      kind: "IntValue",
+                      value: "200",
+                    }),
+                  ],
+                  selectionSet:
+                    node.selectionSet && node.selectionSet.selections.length > 0
+                      ? node.selectionSet
+                      : makeSelectionSet([
+                          makeFieldSelection("edges", [
+                            makeFieldSelection("node", [
+                              makeFieldSelection("id"),
+                            ]),
+                          ]),
+                        ]),
+                }));
+              },
+            })
+          );
+
+          actions.push(addConnectionDirective);
         }
       }
 
