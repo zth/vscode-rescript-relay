@@ -11,6 +11,7 @@ import {
   Position,
   window,
   Uri,
+  workspace,
 } from "vscode";
 import {
   CompletionParams,
@@ -225,16 +226,16 @@ export function complete(document: TextDocument, selection: Position) {
   return r;
 }
 
-export function findContext(
+export async function findContext(
   document: TextDocument,
   selection: Range | Selection | Position
-): {
+): Promise<{
   recordName: string;
   fragmentName: string;
   sourceFilePath: string;
   tag: GraphQLSourceFromTag;
   propName: string;
-} | null {
+} | null> {
   const extensionPath = extensions.getExtension("chenglou92.rescript-vscode")
     ?.extensionPath;
 
@@ -258,6 +259,7 @@ export function findContext(
   // it, and actual GraphQL document.
 
   let sourceFilePath: string | null = null;
+  let docText = "";
   const theCtx = ctx;
 
   if (
@@ -265,8 +267,22 @@ export function findContext(
   ) {
     // This is from the same file we're in
     sourceFilePath = document.uri.fsPath;
+    docText = document.getText();
   } else {
-    // TODO: Support looking up from other files..
+    const sourceLoc = await getSourceLocOfGraphQL(theCtx.fragmentName);
+
+    if (sourceLoc != null) {
+      const [fileUri] = await workspace.findFiles(
+        `**/${sourceLoc.fileName}`,
+        null,
+        1
+      );
+
+      if (fileUri != null) {
+        sourceFilePath = fileUri.fsPath;
+        docText = fs.readFileSync(sourceFilePath, "utf-8");
+      }
+    }
   }
 
   if (sourceFilePath == null) {
@@ -274,7 +290,7 @@ export function findContext(
     return null;
   }
 
-  const tag = extractGraphQLSources("rescript", document.getText())?.find(
+  const tag = extractGraphQLSources("rescript", docText)?.find(
     (t) =>
       t.type === "TAG" && t.content.includes(`fragment ${theCtx.fragmentName}`)
   );

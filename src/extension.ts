@@ -346,7 +346,7 @@ function initProviders(_context: ExtensionContext) {
 
         const ctxPos = new Position(selection.line, selection.character - 1);
 
-        const ctx = findContext(document, ctxPos);
+        const ctx = await findContext(document, ctxPos);
 
         if (ctx == null) {
           return;
@@ -482,7 +482,7 @@ function initProviders(_context: ExtensionContext) {
 
         const ctxPos = posBehindPipe;
 
-        const ctx = findContext(document, ctxPos);
+        const ctx = await findContext(document, ctxPos);
 
         if (ctx == null) {
           return;
@@ -532,7 +532,7 @@ function initProviders(_context: ExtensionContext) {
       }
 
       try {
-        const ctx = findContext(document, position);
+        const ctx = await findContext(document, position);
 
         if (ctx == null) {
           return;
@@ -645,7 +645,7 @@ function initProviders(_context: ExtensionContext) {
         return null;
       }
 
-      const ctx = findContext(document, selection);
+      const ctx = await findContext(document, selection);
 
       if (ctx == null) {
         return;
@@ -703,7 +703,7 @@ function initProviders(_context: ExtensionContext) {
         title: "Peek definition",
         command: "editor.action.peekLocations",
         arguments: [
-          document.uri,
+          Uri.parse(ctx.sourceFilePath),
           selection.start,
           [
             new Location(
@@ -730,7 +730,7 @@ function initProviders(_context: ExtensionContext) {
         title: "Go to definition",
         command: "editor.action.goToLocations",
         arguments: [
-          document.uri,
+          Uri.parse(ctx.sourceFilePath),
           getAdjustedPosition(ctx.tag, positionCtx?.startLoc),
           [],
           "goto",
