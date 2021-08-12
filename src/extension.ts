@@ -124,6 +124,7 @@ import {
   findGraphQLRecordContext,
   findRecordAndModulesFromCompletion,
   GraphQLRecordCtx,
+  GraphQLType,
   namedTypeToString,
 } from "./contextUtilsNoVscode";
 import {
@@ -254,26 +255,27 @@ function initProviders(_context: ExtensionContext) {
               const targetOp = operationsInDoc?.find(
                 (op) =>
                   op.type === "TAG" &&
-                  op.content.includes(`fragment ${curr.fragmentName}`)
+                  op.content.includes(`${curr.graphqlType} ${curr.graphqlName}`)
               ) as GraphQLSourceFromTag | undefined;
 
               if (targetOp == null) {
                 return acc;
               }
 
-              if (cached.get(curr.fragmentName) == null) {
+              if (cached.get(curr.graphqlName) == null) {
                 const ctx = findGraphQLRecordContext(
                   targetOp.content,
                   curr.recordName,
-                  schema
+                  schema,
+                  curr.graphqlType
                 );
 
                 if (ctx != null) {
-                  cached.set(curr.fragmentName, ctx);
+                  cached.set(curr.graphqlName, ctx);
                 }
               }
 
-              const ctx = cached.get(curr.fragmentName);
+              const ctx = cached.get(curr.graphqlName);
 
               if (ctx == null) {
                 return acc;
@@ -361,7 +363,8 @@ function initProviders(_context: ExtensionContext) {
         const positionCtx = findGraphQLRecordContext(
           ctx.tag.content,
           ctx.recordName,
-          schema
+          schema,
+          ctx.graphqlType
         );
 
         if (positionCtx == null) {
@@ -393,7 +396,7 @@ function initProviders(_context: ExtensionContext) {
             }
 
             docs.appendMarkdown(
-              `\nAdd field \`${key}\` to \`${ctx.fragmentName}\` and use it`
+              `\nAdd field \`${key}\` to \`${ctx.graphqlName}\` and use it`
             );
             item.documentation = docs;
 
@@ -439,7 +442,9 @@ function initProviders(_context: ExtensionContext) {
                     item.__extra.ctx.recordName,
                     // @ts-ignore
                     item.__extra.positionCtx.type,
-                    key
+                    key,
+                    // @ts-ignore
+                    item.__extra.ctx.graphqlType
                   )
                 )
               ),
@@ -497,7 +502,8 @@ function initProviders(_context: ExtensionContext) {
         const positionCtx = findGraphQLRecordContext(
           ctx.tag.content,
           ctx.recordName,
-          schema
+          schema,
+          ctx.graphqlType
         );
 
         if (positionCtx == null) {
@@ -547,7 +553,8 @@ function initProviders(_context: ExtensionContext) {
         const positionCtx = findGraphQLRecordContext(
           ctx.tag.content,
           ctx.recordName,
-          schema
+          schema,
+          ctx.graphqlType
         );
 
         if (positionCtx == null) {
@@ -623,7 +630,7 @@ function initProviders(_context: ExtensionContext) {
         );
 
         let graphqlDefinitionHover = new MarkdownString(
-          `Go to definition of \`${ctx.propName}\` in [${ctx.fragmentName}](${goToGraphQLDefinitionCommand})`
+          `Go to definition of \`${ctx.propName}\` in [${ctx.graphqlName}](${goToGraphQLDefinitionCommand})`
         );
         graphqlDefinitionHover.isTrusted = true;
 
@@ -662,7 +669,8 @@ function initProviders(_context: ExtensionContext) {
       const positionCtx = findGraphQLRecordContext(
         ctx.tag.content,
         ctx.recordName,
-        schema
+        schema,
+        ctx.graphqlType
       );
 
       const actions = [];
@@ -690,6 +698,7 @@ function initProviders(_context: ExtensionContext) {
             positionCtx.type,
             ctx.recordName,
             ctx.propName,
+            ctx.graphqlType,
           ],
         };
 
@@ -699,7 +708,7 @@ function initProviders(_context: ExtensionContext) {
       if (isInOpenedFile) {
         // Peek fragment
         const peekFragment = new CodeAction(
-          `Peek this value in "${ctx.fragmentName}"`,
+          `Peek this value in "${ctx.graphqlName}"`,
           CodeActionKind.Empty
         );
 
@@ -725,13 +734,13 @@ function initProviders(_context: ExtensionContext) {
         actions.push(peekFragment);
       }
 
-      // Go to fragment
-      const goToFragment = new CodeAction(
-        `Go to definition of "${ctx.fragmentName}"`,
+      // Go to GraphQL
+      const goToGraphql = new CodeAction(
+        `Go to definition of "${ctx.graphqlName}"`,
         CodeActionKind.Empty
       );
 
-      goToFragment.command = {
+      goToGraphql.command = {
         title: "Go to definition",
         command: "editor.action.goToLocations",
         arguments: [
@@ -742,7 +751,7 @@ function initProviders(_context: ExtensionContext) {
         ],
       };
 
-      actions.push(goToFragment);
+      actions.push(goToGraphql);
 
       return actions;
     },
@@ -1729,7 +1738,8 @@ function initCommands(context: ExtensionContext): void {
         tag: GraphQLSourceFromTag,
         type: GraphQLCompositeType,
         recordName: string,
-        selectedVariableName: string
+        selectedVariableName: string,
+        graphqlType: GraphQLType
       ) => {
         const editor = window.activeTextEditor;
 
@@ -1776,7 +1786,8 @@ function initCommands(context: ExtensionContext): void {
           operationAst,
           recordName,
           type,
-          fragmentName
+          fragmentName,
+          graphqlType
         );
 
         if (newOp == null) {

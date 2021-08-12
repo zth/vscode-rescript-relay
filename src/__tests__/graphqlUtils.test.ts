@@ -43,7 +43,8 @@ describe("addFieldAtPosition", () => {
           "fragment",
           // @ts-ignore
           mockSchema.getType("User"),
-          "age"
+          "age",
+          "fragment"
         )
       ).trim()
     ).toEqual(
@@ -66,7 +67,8 @@ describe("addFieldAtPosition", () => {
           "fragment_bestFriend",
           // @ts-ignore
           mockSchema.getType("User"),
-          "age"
+          "age",
+          "fragment"
         )
       ).trim()
     ).toEqual(
@@ -89,7 +91,8 @@ describe("addFieldAtPosition", () => {
           "fragment",
           // @ts-ignore
           mockSchema.getType("User"),
-          "bestFriend"
+          "bestFriend",
+          "fragment"
         )
       ).trim()
     ).toEqual(
@@ -116,7 +119,8 @@ describe("addFieldAtPosition", () => {
           "fragment_pets_Dog",
           // @ts-ignore
           mockSchema.getType("Dog"),
-          "name"
+          "name",
+          "fragment"
         )
       ).trim()
     ).toEqual(

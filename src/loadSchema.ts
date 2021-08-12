@@ -3,7 +3,7 @@ import { workspace, window } from "vscode";
 import { createGraphQLConfig } from "./graphqlConfig";
 import { GraphQLConfig } from "graphql-config";
 import * as path from "path";
-import { hasHighEnoughReScriptRelayVersion } from "./utils";
+import { hasHighEnoughReScriptRelayVersion } from "./utilsNoVsCode";
 
 interface SchemaCache {
   config: GraphQLConfig;

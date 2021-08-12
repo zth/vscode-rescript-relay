@@ -19,13 +19,18 @@ import {
   TextDocumentIdentifier,
   TypeDefinitionParams,
 } from "vscode-languageserver-protocol";
-import { extractContextFromHover, GqlCtx } from "./contextUtilsNoVscode";
+import {
+  extractContextFromHover,
+  findGraphQLTypeFromRecord,
+  GqlCtx,
+} from "./contextUtilsNoVscode";
 import * as path from "path";
 import * as fs from "fs";
 import { extractGraphQLSources } from "./findGraphQLSources";
 import { GraphQLSourceFromTag } from "./extensionTypes";
 import { loadRelayConfig } from "./loadSchema";
 import * as lineReader from "line-reader";
+import { GraphQLType } from "./contextUtilsNoVscode";
 
 const logDebug = (txt: string) => {
   return;
@@ -99,7 +104,7 @@ export function extractContextFromTypeDefinition(
   const fileName = path.basename(uri);
 
   if (fileName.endsWith("_graphql.res")) {
-    const fragmentName = fileName.slice(
+    const graphqlName = fileName.slice(
       0,
       fileName.length - "_graphql.res".length
     );
@@ -120,9 +125,11 @@ export function extractContextFromTypeDefinition(
       .join("\n");
 
     const recordName = targetContent.split(/(type |and )/g)[2].split(" =")[0];
+    const graphqlType = findGraphQLTypeFromRecord(recordName, graphqlName);
 
     return {
-      fragmentName,
+      graphqlName,
+      graphqlType,
       recordName: `${recordName}_${propName}`,
       propName,
     };
@@ -232,7 +239,8 @@ export async function findContext(
   allowFilesOutsideOfCurrent = false
 ): Promise<{
   recordName: string;
-  fragmentName: string;
+  graphqlName: string;
+  graphqlType: GraphQLType;
   sourceFilePath: string;
   tag: GraphQLSourceFromTag;
   propName: string;
@@ -264,13 +272,13 @@ export async function findContext(
   const theCtx = ctx;
 
   if (
-    theCtx.fragmentName.startsWith(path.basename(document.uri.fsPath, ".res"))
+    theCtx.graphqlName.startsWith(path.basename(document.uri.fsPath, ".res"))
   ) {
     // This is from the same file we're in
     sourceFilePath = document.uri.fsPath;
     docText = document.getText();
   } else if (allowFilesOutsideOfCurrent) {
-    const sourceLoc = await getSourceLocOfGraphQL(theCtx.fragmentName);
+    const sourceLoc = await getSourceLocOfGraphQL(theCtx.graphqlName);
 
     if (sourceLoc != null) {
       const [fileUri] = await workspace.findFiles(
@@ -293,7 +301,8 @@ export async function findContext(
 
   const tag = extractGraphQLSources("rescript", docText)?.find(
     (t) =>
-      t.type === "TAG" && t.content.includes(`fragment ${theCtx.fragmentName}`)
+      t.type === "TAG" &&
+      t.content.includes(`${theCtx.graphqlType} ${theCtx.graphqlName}`)
   );
 
   if (tag == null || tag.type !== "TAG") {
@@ -304,7 +313,11 @@ export async function findContext(
   return {
     sourceFilePath,
     tag,
-    ...theCtx,
+    graphqlName: theCtx.graphqlName,
+    // @ts-ignore oh how I love you TS
+    graphqlType: theCtx.graphqlType,
+    propName: theCtx.propName,
+    recordName: theCtx.recordName,
   };
 }
 

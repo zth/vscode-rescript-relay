@@ -1,4 +1,4 @@
-import { hasHighEnoughReScriptRelayVersion } from "../utils";
+import { hasHighEnoughReScriptRelayVersion } from "../utilsNoVsCode";
 
 it("identifies high enough versions", () => {
   expect(hasHighEnoughReScriptRelayVersion("0.13.0")).toBe(true);

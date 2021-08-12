@@ -22,14 +22,40 @@ import {
   GraphQLScalarType,
   GraphQLEnumType,
   GraphQLInputObjectType,
+  OperationDefinitionNode,
 } from "graphql";
 import { makeFirstFieldSelection } from "./graphqlUtilsNoVscode";
 
+export type GraphQLType = "query" | "fragment" | "subscription" | "mutation";
+
 export type GqlCtx = {
   recordName: string;
-  fragmentName: string;
+  graphqlName: string;
+  graphqlType: GraphQLType;
   propName: string;
 };
+
+export function findGraphQLTypeFromRecord(
+  recordName: string,
+  graphqlName: string
+): GraphQLType {
+  let graphqlType: GraphQLType = "fragment";
+
+  if (recordName.startsWith("response")) {
+    const graphqlNameLc = graphqlName.toLowerCase();
+    if (graphqlNameLc.endsWith("mutation")) {
+      graphqlType = "mutation";
+    } else if (graphqlNameLc.endsWith("subscription")) {
+      graphqlType = "subscription";
+    } else if (graphqlNameLc.endsWith("query")) {
+      graphqlType = "query";
+    }
+  } else if (recordName.startsWith("fragment")) {
+    graphqlType = "fragment";
+  }
+
+  return graphqlType;
+}
 
 export const findRecordAndModulesFromCompletion = (completionItem: {
   label: string;
@@ -37,7 +63,8 @@ export const findRecordAndModulesFromCompletion = (completionItem: {
 }): null | {
   label: string;
   module: string;
-  fragmentName: string;
+  graphqlName: string;
+  graphqlType: GraphQLType;
   recordName: string;
 } => {
   const extracted = completionItem.detail.match(
@@ -45,11 +72,16 @@ export const findRecordAndModulesFromCompletion = (completionItem: {
   );
 
   if (extracted != null && extracted.length === 3) {
+    const graphqlName = extracted[1];
+    const recordName = extracted[2];
+    const graphqlType = findGraphQLTypeFromRecord(recordName, graphqlName);
+
     return {
       label: completionItem.label,
-      module: `${extracted[1]}_graphql`,
-      fragmentName: extracted[1],
-      recordName: extracted[2],
+      module: `${graphqlName}_graphql`,
+      graphqlName,
+      graphqlType,
+      recordName,
     };
   }
   return null;
@@ -65,14 +97,17 @@ export function extractContextFromHover(
 
   let res;
 
-  let fragmentName: string | null = null;
+  let graphqlName: string | null = null;
   let recordName: string | null = null;
+  let graphqlType: GraphQLType | null = null;
 
   const opFragmentNameExtractorRegexp = /(\w+)_graphql(?:.|(?:-\w+".))Types.(\w+)/g;
 
   while ((res = opFragmentNameExtractorRegexp.exec(hoverContents)) !== null) {
-    fragmentName = res[1] ?? null;
+    graphqlName = res[1] ?? null;
     recordName = res[2] ?? null;
+
+    graphqlType = findGraphQLTypeFromRecord(recordName, graphqlName);
 
     // A (weird) heuristic for unions
     if (
@@ -83,18 +118,19 @@ export function extractContextFromHover(
       recordName = parts.slice(0, parts.length - 1).join("_");
     }
 
-    if (fragmentName != null && recordName != null) {
+    if (graphqlName != null && recordName != null) {
       break;
     }
   }
 
-  if (fragmentName == null || recordName == null) {
+  if (graphqlName == null || recordName == null || graphqlType == null) {
     return null;
   }
 
   return {
     recordName,
-    fragmentName,
+    graphqlName,
+    graphqlType,
     propName,
   };
 }
@@ -110,7 +146,8 @@ const getNameForNode = (node: ASTNode) => {
 
 const getNamedPath = (
   ancestors: ReadonlyArray<ASTNode | ReadonlyArray<ASTNode>> | null,
-  node: ASTNode
+  node: ASTNode,
+  graphqlType: GraphQLType
 ): string => {
   const paths = (ancestors || []).reduce((acc: string[], next) => {
     if (Array.isArray(next)) {
@@ -128,7 +165,13 @@ const getNamedPath = (
     }
   }, []);
 
-  return ["fragment", ...paths, getNameForNode(node)].filter(Boolean).join("_");
+  return [
+    graphqlType === "fragment" ? "fragment" : "response",
+    ...paths,
+    getNameForNode(node),
+  ]
+    .filter(Boolean)
+    .join("_");
 };
 
 export interface GraphQLRecordCtx {
@@ -144,12 +187,14 @@ export interface GraphQLRecordCtx {
 export const findGraphQLRecordContext = (
   src: string,
   recordName: string,
-  schema: GraphQLSchema
+  schema: GraphQLSchema,
+  graphqlType: GraphQLType
 ): null | GraphQLRecordCtx => {
   const parsed = parse(src);
 
   let typeOfThisThing: GraphQLNamedType | null = null;
   let astNode:
+    | OperationDefinitionNode
     | FragmentDefinitionNode
     | FieldNode
     | InlineFragmentNode
@@ -162,10 +207,15 @@ export const findGraphQLRecordContext = (
   const typeInfo = new TypeInfo(schema);
 
   const checkNode = (
-    node: FragmentDefinitionNode | FieldNode | InlineFragmentNode,
-    ancestors: any
+    node:
+      | FragmentDefinitionNode
+      | FieldNode
+      | InlineFragmentNode
+      | OperationDefinitionNode,
+    ancestors: any,
+    graphqlType: GraphQLType
   ) => {
-    const namedPath = getNamedPath(ancestors, node);
+    const namedPath = getNamedPath(ancestors, node, graphqlType);
 
     if (namedPath === recordName) {
       const type = typeInfo.getType();
@@ -197,13 +247,16 @@ export const findGraphQLRecordContext = (
 
   const visitor = visitWithTypeInfo(typeInfo, {
     Field(node, _a, _b, _c, ancestors) {
-      checkNode(node, ancestors);
+      checkNode(node, ancestors, graphqlType);
     },
     InlineFragment(node, _a, _b, _c, ancestors) {
-      checkNode(node, ancestors);
+      checkNode(node, ancestors, graphqlType);
     },
     FragmentDefinition(node) {
-      checkNode(node, []);
+      checkNode(node, [], graphqlType);
+    },
+    OperationDefinition(node) {
+      checkNode(node, [], graphqlType);
     },
   });
 
@@ -228,7 +281,8 @@ export function addFieldAtPosition(
   parsedSrc: DocumentNode,
   targetRecordName: string,
   parentType: GraphQLCompositeType,
-  fieldName: string
+  fieldName: string,
+  graphqlType: GraphQLType
 ) {
   if (parentType instanceof GraphQLObjectType === false) {
     return parsedSrc;
@@ -248,14 +302,22 @@ export function addFieldAtPosition(
   let hasAddedField = false;
 
   const resolveNode = (
-    node: FieldNode | FragmentDefinitionNode | InlineFragmentNode,
+    node:
+      | FieldNode
+      | FragmentDefinitionNode
+      | InlineFragmentNode
+      | OperationDefinitionNode,
     ancestors: any
-  ): FieldNode | FragmentDefinitionNode | InlineFragmentNode => {
+  ):
+    | FieldNode
+    | FragmentDefinitionNode
+    | InlineFragmentNode
+    | OperationDefinitionNode => {
     if (hasAddedField) {
       return node;
     }
 
-    const namedPath = getNamedPath(ancestors, node);
+    const namedPath = getNamedPath(ancestors, node, graphqlType);
 
     if (namedPath === targetRecordName) {
       const selections: SelectionNode[] = [];
@@ -298,6 +360,9 @@ export function addFieldAtPosition(
   };
 
   const newSrc = visit(parsedSrc, {
+    OperationDefinition(node, _a, _b, _c, ancestors) {
+      return resolveNode(node, ancestors);
+    },
     FragmentDefinition(node, _a, _b, _c, ancestors) {
       return resolveNode(node, ancestors);
     },
@@ -316,7 +381,8 @@ export function addFragmentSpreadAtPosition(
   parsedSrc: DocumentNode,
   targetRecordName: string,
   parentType: GraphQLCompositeType,
-  fragmentName: string
+  fragmentName: string,
+  graphqlType: GraphQLType
 ) {
   if (
     parentType instanceof GraphQLObjectType === false &&
@@ -329,14 +395,22 @@ export function addFragmentSpreadAtPosition(
   let hasAddedSpread = false;
 
   const resolveNode = (
-    node: FieldNode | FragmentDefinitionNode | InlineFragmentNode,
+    node:
+      | FieldNode
+      | FragmentDefinitionNode
+      | InlineFragmentNode
+      | OperationDefinitionNode,
     ancestors: any
-  ): FieldNode | FragmentDefinitionNode | InlineFragmentNode => {
+  ):
+    | FieldNode
+    | FragmentDefinitionNode
+    | InlineFragmentNode
+    | OperationDefinitionNode => {
     if (hasAddedSpread) {
       return node;
     }
 
-    const namedPath = getNamedPath(ancestors, node);
+    const namedPath = getNamedPath(ancestors, node, graphqlType);
 
     if (namedPath === targetRecordName) {
       hasAddedSpread = true;
@@ -365,6 +439,9 @@ export function addFragmentSpreadAtPosition(
   };
 
   const newSrc = visit(parsedSrc, {
+    OperationDefinition(node, _a, _b, _c, ancestors) {
+      return resolveNode(node, ancestors);
+    },
     FragmentDefinition(node, _a, _b, _c, ancestors) {
       return resolveNode(node, ancestors);
     },

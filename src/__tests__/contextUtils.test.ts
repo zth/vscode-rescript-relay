@@ -13,8 +13,23 @@ describe("extractContextFromHover", () => {
         "```rescript\nReasonReactExamples.SingleTicket_ticket_graphql.Types.fragment\n```\n\n```rescript\ntype fragment = {\n assignee: option<\n [\n | #UnselectedUnionMember(string)\n | #User(fragment_assignee_User)\n | #WorkingGroup(fragment_assignee_WorkingGroup)\n ],\n >,\n id: string,\n subject: string,\n lastUpdated: option<string>,\n trackingId: string,\n fragmentRefs: RescriptRelay.fragmentRefs<\n [#TicketStatusBadge_ticket],\n >,\n}\n```"
       )
     ).toEqual({
-      fragmentName: "SingleTicket_ticket",
+      graphqlName: "SingleTicket_ticket",
+      graphqlType: "fragment",
       recordName: "fragment",
+      propName: "x",
+    });
+  });
+
+  it("finds the context of a hover string from the ReScript VSCode extension, for queries", () => {
+    expect(
+      extractContextFromHover(
+        "x",
+        "```rescript\nReasonReactExamples.SingleTicketQuery_graphql.Types.response\n```\n\n```rescript\ntype fragment = {\n assignee: option<\n [\n | #UnselectedUnionMember(string)\n | #User(fragment_assignee_User)\n | #WorkingGroup(fragment_assignee_WorkingGroup)\n ],\n >,\n id: string,\n subject: string,\n lastUpdated: option<string>,\n trackingId: string,\n fragmentRefs: RescriptRelay.fragmentRefs<\n [#TicketStatusBadge_ticket],\n >,\n}\n```"
+      )
+    ).toEqual({
+      graphqlName: "SingleTicketQuery",
+      graphqlType: "query",
+      recordName: "response",
       propName: "x",
     });
   });
@@ -26,7 +41,8 @@ describe("extractContextFromHover", () => {
         '```rescript"TodoList_query_graphql-ReasonReactExamples".Types.fragment_todosConnection_edges_node\n        type fragment_todosConnection_edges_node = {\n          id: string,\n          fragmentRefs: RescriptRelay.fragmentRefs<\n            [#SingleTodo_todoItem],\n          >,\n        }```'
       )
     ).toEqual({
-      fragmentName: "TodoList_query",
+      graphqlName: "TodoList_query",
+      graphqlType: "fragment",
       recordName: "fragment_todosConnection_edges_node",
       propName: "x",
     });
@@ -40,7 +56,8 @@ describe("extractContextFromHover", () => {
       )
     ).toEqual({
       propName: "x",
-      fragmentName: "SingleTicket_ticket",
+      graphqlName: "SingleTicket_ticket",
+      graphqlType: "fragment",
       recordName: "fragment_user_friends_Friend_node",
     });
   });
@@ -57,7 +74,8 @@ describe("extractContextFromHover", () => {
       )
     ).toEqual({
       propName: "x",
-      fragmentName: "SingleTicketWorkingGroup_workingGroup",
+      graphqlName: "SingleTicketWorkingGroup_workingGroup",
+      graphqlType: "fragment",
       recordName: "fragment_membersConnection_edges",
     });
   });
@@ -89,7 +107,8 @@ describe("extractContextFromHover", () => {
         "```rescript\n[\n          | #WorkingGroup(ReasonReactExamples.SingleTicket_ticket_graphql.Types.fragment_assignee_WorkingGroup)\n          | #User(ReasonReactExamples.SingleTicket_ticket_graphql.Types.fragment_assignee_User)\n          | #UnselectedUnionMember(string)\n        ]\n```"
       )
     ).toEqual({
-      fragmentName: "SingleTicket_ticket",
+      graphqlName: "SingleTicket_ticket",
+      graphqlType: "fragment",
       propName: "x",
       recordName: "fragment_assignee",
     });
@@ -125,7 +144,8 @@ describe("findGraphQLRecordContext", () => {
     }
 }`,
       "fragment_bestFriend",
-      mockSchema
+      mockSchema,
+      "fragment"
     );
 
     expect(ctx?.type.name).toBe("User");
@@ -148,7 +168,8 @@ describe("findGraphQLRecordContext", () => {
     }
 }`,
       "fragment_bestFriend_age",
-      mockSchema
+      mockSchema,
+      "fragment"
     );
 
     expect(ctx?.type.name).toBe("Int");
@@ -172,7 +193,8 @@ describe("findGraphQLRecordContext", () => {
     }
 }`,
       "fragment_bestFriend_id",
-      mockSchema
+      mockSchema,
+      "fragment"
     );
 
     expect(ctx?.type.name).toBe("ID");
@@ -183,7 +205,7 @@ describe("findGraphQLRecordContext", () => {
 });
 
 describe("findRecordAndModulesFromCompletion", () => {
-  it("handles completion items", () => {
+  it("handles completion items for fragments", () => {
     expect(
       findRecordAndModulesFromCompletion({
         label: "user",
@@ -193,8 +215,57 @@ describe("findRecordAndModulesFromCompletion", () => {
     ).toEqual({
       label: "user",
       module: "SingleTicket_ticket_graphql",
-      fragmentName: "SingleTicket_ticket",
+      graphqlName: "SingleTicket_ticket",
+      graphqlType: "fragment",
       recordName: "fragment_assignee_User",
+    });
+  });
+
+  it("handles completion items for queries", () => {
+    expect(
+      findRecordAndModulesFromCompletion({
+        label: "user",
+        detail:
+          "ReasonReactExamples.SingleTicketQuery_graphql.Types.response_assignee_User",
+      })
+    ).toEqual({
+      label: "user",
+      module: "SingleTicketQuery_graphql",
+      graphqlName: "SingleTicketQuery",
+      graphqlType: "query",
+      recordName: "response_assignee_User",
+    });
+  });
+
+  it("handles completion items for mutations", () => {
+    expect(
+      findRecordAndModulesFromCompletion({
+        label: "user",
+        detail:
+          "ReasonReactExamples.SingleTicketMutation_graphql.Types.response_assignee_User",
+      })
+    ).toEqual({
+      label: "user",
+      module: "SingleTicketMutation_graphql",
+      graphqlName: "SingleTicketMutation",
+      graphqlType: "mutation",
+      recordName: "response_assignee_User",
+    });
+  });
+
+  it("handles completion items for subscriptions", () => {
+    expect(
+      findRecordAndModulesFromCompletion({
+        label: "user",
+        detail:
+          "ReasonReactExamples.SingleTicketSubscription_graphql.Types.response_assignee_User",
+      })
+    ).toEqual({
+      label: "user",
+      module: "SingleTicketSubscription_graphql",
+      graphqlName: "SingleTicketSubscription",
+      graphqlType: "subscription",
+      recordName: "response_assignee_User",
     });
   });
 
@@ -207,7 +278,8 @@ describe("findRecordAndModulesFromCompletion", () => {
     ).toEqual({
       label: "todoItem",
       module: "TodoList_query_graphql",
-      fragmentName: "TodoList_query",
+      graphqlName: "TodoList_query",
+      graphqlType: "fragment",
       recordName: "fragment_todosConnection_edges_node",
     });
   });
