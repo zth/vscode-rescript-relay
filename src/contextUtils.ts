@@ -228,7 +228,8 @@ export function complete(document: TextDocument, selection: Position) {
 
 export async function findContext(
   document: TextDocument,
-  selection: Range | Selection | Position
+  selection: Range | Selection | Position,
+  allowFilesOutsideOfCurrent = false
 ): Promise<{
   recordName: string;
   fragmentName: string;
@@ -268,7 +269,7 @@ export async function findContext(
     // This is from the same file we're in
     sourceFilePath = document.uri.fsPath;
     docText = document.getText();
-  } else {
+  } else if (allowFilesOutsideOfCurrent) {
     const sourceLoc = await getSourceLocOfGraphQL(theCtx.fragmentName);
 
     if (sourceLoc != null) {

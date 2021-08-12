@@ -532,7 +532,7 @@ function initProviders(_context: ExtensionContext) {
       }
 
       try {
-        const ctx = await findContext(document, position);
+        const ctx = await findContext(document, position, true);
 
         if (ctx == null) {
           return;
@@ -645,11 +645,13 @@ function initProviders(_context: ExtensionContext) {
         return null;
       }
 
-      const ctx = await findContext(document, selection);
+      const ctx = await findContext(document, selection, true);
 
       if (ctx == null) {
         return;
       }
+
+      const isInOpenedFile = ctx.sourceFilePath === document.uri.fsPath;
 
       const schema = await loadFullSchema();
 
@@ -667,9 +669,10 @@ function initProviders(_context: ExtensionContext) {
 
       // Add new fragment here
       if (
-        positionCtx?.type instanceof GraphQLObjectType ||
-        positionCtx?.type instanceof GraphQLInterfaceType ||
-        positionCtx?.type instanceof GraphQLUnionType
+        isInOpenedFile &&
+        (positionCtx?.type instanceof GraphQLObjectType ||
+          positionCtx?.type instanceof GraphQLInterfaceType ||
+          positionCtx?.type instanceof GraphQLUnionType)
       ) {
         const addNewFragmentHere = new CodeAction(
           `Add new fragment to "${ctx.propName}"`,
@@ -693,32 +696,34 @@ function initProviders(_context: ExtensionContext) {
         actions.push(addNewFragmentHere);
       }
 
-      // Peek fragment
-      const peekFragment = new CodeAction(
-        `Peek this value in "${ctx.fragmentName}"`,
-        CodeActionKind.Empty
-      );
+      if (isInOpenedFile) {
+        // Peek fragment
+        const peekFragment = new CodeAction(
+          `Peek this value in "${ctx.fragmentName}"`,
+          CodeActionKind.Empty
+        );
 
-      peekFragment.command = {
-        title: "Peek definition",
-        command: "editor.action.peekLocations",
-        arguments: [
-          Uri.parse(ctx.sourceFilePath),
-          selection.start,
-          [
-            new Location(
-              document.uri,
-              new Range(
-                getAdjustedPosition(ctx.tag, positionCtx?.startLoc),
-                getAdjustedPosition(ctx.tag, positionCtx?.endLoc)
-              )
-            ),
+        peekFragment.command = {
+          title: "Peek definition",
+          command: "editor.action.peekLocations",
+          arguments: [
+            Uri.parse(ctx.sourceFilePath),
+            selection.start,
+            [
+              new Location(
+                document.uri,
+                new Range(
+                  getAdjustedPosition(ctx.tag, positionCtx?.startLoc),
+                  getAdjustedPosition(ctx.tag, positionCtx?.endLoc)
+                )
+              ),
+            ],
+            "peek",
           ],
-          "peek",
-        ],
-      };
+        };
 
-      actions.push(peekFragment);
+        actions.push(peekFragment);
+      }
 
       // Go to fragment
       const goToFragment = new CodeAction(
