@@ -1,5 +1,7 @@
 ## master
 
+## 0.6.1
+
 - Code action for adding `@connection`.
 - Look up GraphQL between files to be able to provide (some) hover info when a type isn't accessed in its original file.
 - Enable new experimental features for queries, mutations and subscriptions.
