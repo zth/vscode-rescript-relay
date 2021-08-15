@@ -14,12 +14,14 @@ import {
 import {
   makeFragment,
   makeOperation,
-  makeVariableDefinitionNode,
   pickTypeForFragment,
 } from "./graphqlUtils";
 import { getPreferredFragmentPropName } from "./utils";
 import { pascalCase } from "pascal-case";
-import { makeFieldSelection } from "./graphqlUtilsNoVscode";
+import {
+  makeFieldSelection,
+  makeVariableDefinitionNode,
+} from "./graphqlUtilsNoVscode";
 
 async function getValidModuleName(
   docText: string,

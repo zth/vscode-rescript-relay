@@ -9,7 +9,13 @@ import {
   getNamedType,
   GraphQLField,
   OperationTypeNode,
+  ObjectFieldNode,
+  parse,
+  ValueNode,
+  VariableDefinitionNode,
+  VariableNode,
 } from "graphql";
+import { State } from "graphql-language-service-parser";
 
 export function getFirstField(
   obj: GraphQLObjectType | GraphQLInterfaceType,
@@ -88,4 +94,99 @@ export function makeFirstFieldSelection(
   }
 
   return [makeFieldSelection(firstField.name)];
+}
+
+export function getStateName(state: State): string | undefined {
+  switch (state.kind) {
+    case "OperationDefinition":
+    case "FragmentDefinition":
+    case "AliasedField":
+    case "Field":
+      return state.name ? state.name : undefined;
+  }
+}
+
+export function makeArgument(name: string, value: ValueNode): ArgumentNode {
+  return {
+    kind: "Argument",
+    name: {
+      kind: "Name",
+      value: name,
+    },
+    value,
+  };
+}
+
+export function makeArgumentDefinitionVariable(
+  name: string,
+  type: string,
+  defaultValue?: string | undefined
+): ArgumentNode {
+  const fields: ObjectFieldNode[] = [
+    {
+      kind: "ObjectField",
+      name: {
+        kind: "Name",
+        value: "type",
+      },
+      value: {
+        kind: "StringValue",
+        value: type,
+      },
+    },
+  ];
+
+  if (defaultValue != null) {
+    fields.push({
+      kind: "ObjectField",
+      name: {
+        kind: "Name",
+        value: "defaultValue",
+      },
+      value: {
+        kind: "IntValue",
+        value: defaultValue,
+      },
+    });
+  }
+
+  return {
+    kind: "Argument",
+    name: {
+      kind: "Name",
+      value: name,
+    },
+    value: {
+      kind: "ObjectValue",
+      fields,
+    },
+  };
+}
+
+export function makeVariableDefinitionNode(
+  name: string,
+  value: string
+): VariableDefinitionNode | undefined {
+  const ast = parse(`mutation($${name}: ${value}) { id }`);
+  const firstDef = ast.definitions[0];
+
+  if (
+    firstDef &&
+    firstDef.kind === "OperationDefinition" &&
+    firstDef.variableDefinitions
+  ) {
+    return firstDef.variableDefinitions.find(
+      (v) => v.variable.name.value === name
+    );
+  }
+}
+
+export function makeVariableNode(name: string): VariableNode {
+  return {
+    kind: "Variable",
+    name: {
+      kind: "Name",
+      value: name,
+    },
+  };
 }

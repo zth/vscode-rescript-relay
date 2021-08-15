@@ -26,6 +26,7 @@ export const extractToFragment = ({
 }: ExtractToFragmentConfig): null | {
   selections: SelectionNode[];
   targetSelection: SelectionSetNode;
+  variables: Record<string, string>;
   parentTypeName: string;
 } => {
   // Make selection into fragment component
@@ -36,7 +37,36 @@ export const extractToFragment = ({
 
   const typeInfo = new TypeInfo(schema);
 
+  let variables: Record<string, string> = {};
+
   const visitor = visitWithTypeInfo(typeInfo, {
+    Variable(node) {
+      const { loc } = node;
+
+      if (!loc) {
+        // @ts-ignore
+        variables.__noLoc = true;
+        return;
+      }
+
+      const start = getLocation(source, loc.start);
+      const end = getLocation(source, loc.end);
+
+      if (st.line >= start.line && en.line <= end.line) {
+        const arg = typeInfo.getArgument();
+        const inputType = typeInfo.getInputType();
+        // @ts-ignore
+        variables.__extra = {
+          arg: arg?.name,
+          input: inputType?.toString(),
+          hello: true,
+        };
+
+        if (arg != null && inputType != null) {
+          variables[arg.name] = inputType.toString();
+        }
+      }
+    },
     SelectionSet(node, _key, _parent, _t, _c) {
       const { loc } = node;
 
@@ -48,6 +78,8 @@ export const extractToFragment = ({
       const end = getLocation(source, loc.end);
 
       if (st.line >= start.line && en.line <= end.line) {
+        // @ts-ignore
+        variables.__what = true;
         const thisType = typeInfo.getType();
 
         if (thisType) {
@@ -77,7 +109,12 @@ export const extractToFragment = ({
     return null;
   }
 
-  return { selections, targetSelection, parentTypeName };
+  return {
+    selections,
+    targetSelection,
+    parentTypeName,
+    variables,
+  };
 };
 
 export const addFragmentHere = ({

@@ -1,6 +1,15 @@
-import { parse, Source, print, buildSchema, SelectionNode } from "graphql";
+import {
+  parse,
+  Source,
+  print,
+  buildSchema,
+  SelectionNode,
+  DirectiveNode,
+  ArgumentNode,
+} from "graphql";
 import { extractToFragment } from "../createNewFragmentComponentsUtils";
 import { getSelectedGraphQLOperation } from "../findGraphQLSources";
+import { makeArgumentDefinitionVariable } from "../graphqlUtilsNoVscode";
 
 const makeMockNormalizedSelection = (
   startLine: number,
@@ -9,7 +18,8 @@ const makeMockNormalizedSelection = (
 
 const printExtractedFragment = (
   parentTypeName: string,
-  selections: SelectionNode[]
+  selections: SelectionNode[],
+  fragmentDirectives: DirectiveNode[] = []
 ) =>
   print({
     kind: "FragmentDefinition",
@@ -18,6 +28,7 @@ const printExtractedFragment = (
       name: { kind: "Name", value: parentTypeName },
     },
     name: { kind: "Name", value: "SomeFragment_user" },
+    directives: fragmentDirectives,
     selectionSet: {
       kind: "SelectionSet",
       selections: selections,
@@ -30,6 +41,7 @@ type User {
     firstName: String!
     lastName: String!
     bestFriend: Friend!
+    fullName(format: String): String!
 }
 
 type Friend {
@@ -65,6 +77,7 @@ module Fragment = %relay(\`
             to
         }
     }
+    fullName(format: $format)
   }
 \`
 )
@@ -143,5 +156,46 @@ describe("Extract to fragment component", () => {
         extractedFragment.selections
       )
     ).toMatchSnapshot();
+  });
+
+  it("adds any variables encountered as argumentDefinitions", () => {
+    const extractedFragment = extractToFragment({
+      schema,
+      normalizedSelection: makeMockNormalizedSelection(16, 16),
+      parsedOp,
+      source,
+    });
+
+    if (!extractedFragment) {
+      throw new Error("Could not extract fragment.");
+    }
+
+    const vars = Object.entries(extractedFragment.variables);
+
+    const argumentDefinitions: DirectiveNode | null =
+      vars.length > 0
+        ? {
+            kind: "Directive",
+            name: {
+              kind: "Name",
+              value: "argumentDefinitions",
+            },
+            arguments: vars.map(
+              ([varName, type]): ArgumentNode =>
+                makeArgumentDefinitionVariable(varName, type)
+            ),
+          }
+        : null;
+
+    expect(
+      printExtractedFragment(
+        extractedFragment.parentTypeName,
+        extractedFragment.selections,
+        argumentDefinitions != null ? [argumentDefinitions] : []
+      )
+    )
+      .toBe(`fragment SomeFragment_user on User @argumentDefinitions(format: {type: "String"}) {
+  fullName(format: $format)
+}`);
   });
 });

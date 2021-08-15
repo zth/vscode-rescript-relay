@@ -98,13 +98,10 @@ import {
 } from "./loadSchema";
 import {
   nodeHasVariable,
-  makeVariableDefinitionNode,
   runOnNodeAtPos,
   nodeHasDirective,
   addDirectiveToNode,
-  makeArgumentDefinitionVariable,
   findPath,
-  makeArgument,
   makeFragment,
   makeConnectionsVariable,
   pickTypeForFragment,
@@ -131,6 +128,10 @@ import {
   makeSelectionSet,
   makeFieldSelection,
   getFirstField,
+  makeArgument,
+  makeArgumentDefinitionVariable,
+  makeVariableDefinitionNode,
+  makeVariableNode,
 } from "./graphqlUtilsNoVscode";
 
 let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
@@ -871,6 +872,10 @@ function initProviders(_context: ExtensionContext) {
             CodeActionKind.RefactorExtract
           );
 
+          window.showInformationMessage(
+            JSON.stringify(extractedFragment.variables)
+          );
+
           extractFragment.command = {
             title: "Add new fragment component",
             command: "vscode-rescript-relay.extract-to-new-fragment-component",
@@ -883,6 +888,7 @@ function initProviders(_context: ExtensionContext) {
               },
               extractedFragment.selections,
               extractedFragment.targetSelection,
+              extractedFragment.variables,
             ],
           };
 
@@ -1506,7 +1512,8 @@ function initCommands(context: ExtensionContext): void {
         selection: Range,
         typeInfo: GraphQLTypeAtPos,
         selectedNodeOrNodes: SelectionNode[] | SelectionNode | null,
-        targetSelection: SelectionSetNode
+        targetSelection: SelectionSetNode,
+        variables: Record<string, string>
       ) => {
         const editor = window.activeTextEditor;
         const { loc: targetLoc } = targetSelection;
@@ -1559,6 +1566,7 @@ function initCommands(context: ExtensionContext): void {
 
         const source = new Source(selectedOperation.content);
         const operationAst = parse(source);
+        const vars = Object.entries(variables);
 
         const newFragmentSelection: FragmentSpreadNode = {
           kind: "FragmentSpread",
@@ -1566,6 +1574,21 @@ function initCommands(context: ExtensionContext): void {
             kind: "Name",
             value: fragmentName,
           },
+          directives:
+            vars.length > 0
+              ? [
+                  {
+                    kind: "Directive",
+                    name: {
+                      kind: "Name",
+                      value: "arguments",
+                    },
+                    arguments: vars.map(([name, type]) =>
+                      makeArgument(name, makeVariableNode(type))
+                    ),
+                  },
+                ]
+              : [],
         };
 
         const updatedOperation = prettify(

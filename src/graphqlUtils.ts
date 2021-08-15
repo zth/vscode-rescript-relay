@@ -3,11 +3,9 @@ import {
   getLocation,
   GraphQLObjectType,
   GraphQLField,
-  ValueNode,
   ArgumentNode,
   SelectionNode,
   FieldNode,
-  ObjectFieldNode,
   VariableDefinitionNode,
   OperationDefinitionNode,
   DirectiveNode,
@@ -20,7 +18,6 @@ import {
   print,
   getNamedType,
   GraphQLUnionType,
-  VariableNode,
   OperationTypeNode,
   GraphQLScalarType,
   GraphQLEnumType,
@@ -40,6 +37,11 @@ import {
   makeFirstFieldSelection,
   makeFieldSelection,
   getFirstField,
+  getStateName,
+  makeArgument,
+  makeVariableDefinitionNode,
+  makeVariableNode,
+  makeArgumentDefinitionVariable,
 } from "./graphqlUtilsNoVscode";
 
 export interface NodeWithLoc {
@@ -51,16 +53,6 @@ export type NodesWithDirectives =
   | FieldNode
   | FragmentSpreadNode
   | OperationDefinitionNode;
-
-export function getStateName(state: State): string | undefined {
-  switch (state.kind) {
-    case "OperationDefinition":
-    case "FragmentDefinition":
-    case "AliasedField":
-    case "Field":
-      return state.name ? state.name : undefined;
-  }
-}
 
 export function runOnNodeAtPos<T extends NodeWithLoc>(
   source: Source,
@@ -79,91 +71,6 @@ export function runOnNodeAtPos<T extends NodeWithLoc>(
   if (nodeLoc.line === pos.line + 1) {
     return fn(node);
   }
-}
-
-export function makeArgument(name: string, value: ValueNode): ArgumentNode {
-  return {
-    kind: "Argument",
-    name: {
-      kind: "Name",
-      value: name,
-    },
-    value,
-  };
-}
-
-export function makeArgumentDefinitionVariable(
-  name: string,
-  type: string,
-  defaultValue?: string | undefined
-): ArgumentNode {
-  const fields: ObjectFieldNode[] = [
-    {
-      kind: "ObjectField",
-      name: {
-        kind: "Name",
-        value: "type",
-      },
-      value: {
-        kind: "StringValue",
-        value: type,
-      },
-    },
-  ];
-
-  if (defaultValue != null) {
-    fields.push({
-      kind: "ObjectField",
-      name: {
-        kind: "Name",
-        value: "defaultValue",
-      },
-      value: {
-        kind: "IntValue",
-        value: defaultValue,
-      },
-    });
-  }
-
-  return {
-    kind: "Argument",
-    name: {
-      kind: "Name",
-      value: name,
-    },
-    value: {
-      kind: "ObjectValue",
-      fields,
-    },
-  };
-}
-
-export function makeVariableDefinitionNode(
-  name: string,
-  value: string
-): VariableDefinitionNode | undefined {
-  const ast = parse(`mutation($${name}: ${value}) { id }`);
-  const firstDef = ast.definitions[0];
-
-  if (
-    firstDef &&
-    firstDef.kind === "OperationDefinition" &&
-    firstDef.variableDefinitions
-  ) {
-    return firstDef.variableDefinitions.find(
-      (v) => v.variable.name.value === name
-    );
-  }
-}
-
-export function makeVariableNode(name: string): VariableNode {
-  return {
-    kind: "Variable",
-    name: {
-      kind: "Name",
-      value: name,
-    },
-  };
 }
 
 export function findPath(state: State): string[] {
@@ -264,7 +171,8 @@ export function addDirectiveToNode<T extends NodesWithDirectives>(
 export async function makeFragment(
   fragmentName: string,
   onTypeName: string,
-  selections?: SelectionNode[]
+  selections?: SelectionNode[],
+  variables: Record<string, string> = {}
 ): Promise<string> {
   const schema = await loadFullSchema();
 
@@ -280,6 +188,7 @@ export async function makeFragment(
       onType instanceof GraphQLInterfaceType ||
       onType instanceof GraphQLUnionType)
   ) {
+    const vars = Object.entries(variables);
     const newFragment = prettify(
       print(
         visit(
@@ -293,6 +202,22 @@ export async function makeFragment(
                     ? [...makeFirstFieldSelection(onType)]
                     : selections
                 ),
+                directives:
+                  vars.length > 0
+                    ? [
+                        {
+                          kind: "Directive",
+                          name: {
+                            kind: "Name",
+                            value: "argumentDefinitions",
+                          },
+                          arguments: vars.map(
+                            ([varName, type]): ArgumentNode =>
+                              makeArgumentDefinitionVariable(varName, type)
+                          ),
+                        },
+                      ]
+                    : [],
               };
 
               return newNode;
