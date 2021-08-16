@@ -28,12 +28,20 @@ import { makeFirstFieldSelection } from "./graphqlUtilsNoVscode";
 
 export type GraphQLType = "query" | "fragment" | "subscription" | "mutation";
 
+type RescriptRelayValueCtx = {
+  type: "RescriptRelayValue";
+  value: "dataId";
+};
+
 export type GqlCtx = {
+  type: "GraphQLValue";
   recordName: string;
   graphqlName: string;
   graphqlType: GraphQLType;
   propName: string;
 };
+
+export type ExtractedCtx = GqlCtx | RescriptRelayValueCtx;
 
 export function findGraphQLTypeFromRecord(
   recordName: string,
@@ -90,7 +98,17 @@ export const findRecordAndModulesFromCompletion = (completionItem: {
 export function extractContextFromHover(
   propName: string,
   hoverContents: string
-): GqlCtx | null {
+): ExtractedCtx | null {
+  if (
+    hoverContents.includes(`\`\`\`rescript
+RescriptRelay.dataId`)
+  ) {
+    return {
+      type: "RescriptRelayValue",
+      value: "dataId",
+    };
+  }
+
   if (hoverContents.includes(" => ")) {
     return null;
   }
@@ -128,6 +146,7 @@ export function extractContextFromHover(
   }
 
   return {
+    type: "GraphQLValue",
     recordName,
     graphqlName,
     graphqlType,

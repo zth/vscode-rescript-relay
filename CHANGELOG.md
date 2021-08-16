@@ -1,5 +1,7 @@
 ## master
 
+- Detailed hover for `dataId`, and autocomplete (via pipe) `someDataId->RescriptRelay.dataIdToString` when possible.
+
 ## 0.6.1
 
 - Code action for adding `@connection`.

@@ -21,6 +21,7 @@ import {
 } from "vscode-languageserver-protocol";
 import {
   extractContextFromHover,
+  ExtractedCtx,
   findGraphQLTypeFromRecord,
   GqlCtx,
 } from "./contextUtilsNoVscode";
@@ -128,6 +129,7 @@ export function extractContextFromTypeDefinition(
     const graphqlType = findGraphQLTypeFromRecord(recordName, graphqlName);
 
     return {
+      type: "GraphQLValue",
       graphqlName,
       graphqlType,
       recordName: `${recordName}_${propName}`,
@@ -233,18 +235,28 @@ export function complete(document: TextDocument, selection: Position) {
   return r;
 }
 
-export async function findContext(
-  document: TextDocument,
-  selection: Range | Selection | Position,
-  allowFilesOutsideOfCurrent = false
-): Promise<{
+type GraphQLValueContext = {
+  type: "GraphQLValueContext";
   recordName: string;
   graphqlName: string;
   graphqlType: GraphQLType;
   sourceFilePath: string;
   tag: GraphQLSourceFromTag;
   propName: string;
-} | null> {
+};
+
+type RescriptRelayValueContext = {
+  type: "RescriptRelayValueContext";
+  value: "dataId";
+};
+
+export type Context = GraphQLValueContext | RescriptRelayValueContext;
+
+export async function findContext(
+  document: TextDocument,
+  selection: Range | Selection | Position,
+  allowFilesOutsideOfCurrent = false
+): Promise<Context | null> {
   const extensionPath = extensions.getExtension("chenglou92.rescript-vscode")
     ?.extensionPath;
 
@@ -253,7 +265,11 @@ export async function findContext(
     return null;
   }
 
-  let ctx: GqlCtx | null = getHoverCtx(selection, document, extensionPath);
+  let ctx: ExtractedCtx | null = getHoverCtx(
+    selection,
+    document,
+    extensionPath
+  );
 
   if (ctx == null) {
     ctx = getTypeDefCtx(selection, document, extensionPath);
@@ -270,6 +286,13 @@ export async function findContext(
   let sourceFilePath: string | null = null;
   let docText = "";
   const theCtx = ctx;
+
+  if (theCtx.type === "RescriptRelayValue") {
+    return {
+      type: "RescriptRelayValueContext",
+      value: theCtx.value,
+    };
+  }
 
   if (
     theCtx.graphqlName.startsWith(path.basename(document.uri.fsPath, ".res"))
@@ -311,6 +334,7 @@ export async function findContext(
   }
 
   return {
+    type: "GraphQLValueContext",
     sourceFilePath,
     tag,
     graphqlName: theCtx.graphqlName,
