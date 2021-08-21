@@ -2,6 +2,7 @@
 
 - Detailed hover for `dataId`, and autocomplete (via pipe) `someDataId->RescriptRelay.dataIdToString` when possible.
 - Jump-to-definition for fragment spreads in GraphQL operations.
+- Never emit `_` in generated module names, as it clashes with what Relay expects.
 
 ## 0.6.1
 

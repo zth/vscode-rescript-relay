@@ -65,6 +65,8 @@ export function quickPickFromSchema(
   };
 }
 
+const sanitizeModuleName = (moduleName: string) => moduleName.replace(/_/g, "");
+
 export async function addGraphQLComponent(type: InsertGraphQLComponentType) {
   const textEditor = window.activeTextEditor;
 
@@ -78,10 +80,12 @@ export async function addGraphQLComponent(type: InsertGraphQLComponentType) {
   let insert = "";
 
   // TODO: Fix this, this is insane
-  const moduleName = capitalize(
-    (textEditor.document.fileName.split(/\\|\//).pop() || "")
-      .split(".")
-      .shift() || ""
+  const moduleName = sanitizeModuleName(
+    capitalize(
+      (textEditor.document.fileName.split(/\\|\//).pop() || "")
+        .split(".")
+        .shift() || ""
+    )
   );
 
   switch (type) {
@@ -254,10 +258,6 @@ let make = (${typeOfQuery === "Preloaded" ? "~queryRef" : ""}) => {
         | undefined;
 
       if (isObjectType(mutationField.type)) {
-        window.showInformationMessage(
-          JSON.stringify({ name: mutationField.type.name })
-        );
-
         const fields = mutationField.type.getFields();
         const fieldNames = Object.keys(fields);
         const field =
@@ -289,11 +289,11 @@ let make = (${typeOfQuery === "Preloaded" ? "~queryRef" : ""}) => {
         `${capitalize(mutation)}Mutation`
       );
 
-      window.showInformationMessage(JSON.stringify(mutationSubFieldConfig));
-
       insert += `module ${rModuleName} = %relay(\`\n  ${await makeOperation({
         operationType: "mutation",
-        operationName: `${moduleName}_${capitalize(mutation)}Mutation`,
+        operationName: `${sanitizeModuleName(moduleName)}_${capitalize(
+          mutation
+        )}Mutation`,
         rootField: mutationField,
         skipAddingFieldSelections: !!mutationSubFieldConfig,
         creator: mutationSubFieldConfig
@@ -414,7 +414,9 @@ let make = () => {
 
       insert += `module ${rModuleName} = %relay(\`\n  ${await makeOperation({
         operationType: "subscription",
-        operationName: `${moduleName}_${capitalize(subscription)}Subscription`,
+        operationName: `${sanitizeModuleName(moduleName)}_${capitalize(
+          subscription
+        )}Subscription`,
         rootField: subscriptionField,
       })}\n\`)`;
 
