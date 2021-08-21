@@ -1,4 +1,6 @@
-## master
+## main
+
+## 0.6.2
 
 - Detailed hover for `dataId`, and autocomplete (via pipe) `someDataId->RescriptRelay.dataIdToString` when possible.
 - Jump-to-definition for fragment spreads in GraphQL operations.
