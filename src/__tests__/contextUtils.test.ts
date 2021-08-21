@@ -17,6 +17,7 @@ describe("extractContextFromHover", () => {
       graphqlType: "fragment",
       recordName: "fragment",
       propName: "x",
+      type: "GraphQLValue",
     });
   });
 
@@ -31,6 +32,7 @@ describe("extractContextFromHover", () => {
       graphqlType: "query",
       recordName: "response",
       propName: "x",
+      type: "GraphQLValue",
     });
   });
 
@@ -45,6 +47,7 @@ describe("extractContextFromHover", () => {
       graphqlType: "fragment",
       recordName: "fragment_todosConnection_edges_node",
       propName: "x",
+      type: "GraphQLValue",
     });
   });
 
@@ -59,6 +62,7 @@ describe("extractContextFromHover", () => {
       graphqlName: "SingleTicket_ticket",
       graphqlType: "fragment",
       recordName: "fragment_user_friends_Friend_node",
+      type: "GraphQLValue",
     });
   });
 
@@ -77,6 +81,7 @@ describe("extractContextFromHover", () => {
       graphqlName: "SingleTicketWorkingGroup_workingGroup",
       graphqlType: "fragment",
       recordName: "fragment_membersConnection_edges",
+      type: "GraphQLValue",
     });
   });
 
@@ -111,6 +116,7 @@ describe("extractContextFromHover", () => {
       graphqlType: "fragment",
       propName: "x",
       recordName: "fragment_assignee",
+      type: "GraphQLValue",
     });
   });
 });
