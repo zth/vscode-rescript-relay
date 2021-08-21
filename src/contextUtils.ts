@@ -384,3 +384,56 @@ export async function getSourceLocOfGraphQL(
     );
   });
 }
+
+export async function getFragmentDefinition(
+  fragmentName: string
+): Promise<{
+  fileName: string;
+  fileLocation: Uri;
+  componentName: string;
+  tag: GraphQLSourceFromTag;
+} | null> {
+  const sourceLoc = await getSourceLocOfGraphQL(fragmentName);
+
+  if (sourceLoc == null) {
+    return null;
+  }
+  let sourceFilePath: Uri | null = null;
+  let docText = "";
+
+  const [fileUri] = await workspace.findFiles(
+    `**/${sourceLoc.fileName}`,
+    null,
+    1
+  );
+
+  if (fileUri != null) {
+    sourceFilePath = fileUri;
+    docText = fs.readFileSync(sourceFilePath.fsPath, "utf-8");
+  }
+
+  if (sourceFilePath == null || docText == null) {
+    return null;
+  }
+
+  const tag = extractGraphQLSources("rescript", docText)?.find((source) => {
+    if (
+      source.type === "TAG" &&
+      source.content.includes(`fragment ${fragmentName}`)
+    ) {
+      return true;
+    }
+
+    return false;
+  }) as GraphQLSourceFromTag | undefined;
+
+  if (tag == null) {
+    return null;
+  }
+
+  return {
+    ...sourceLoc,
+    fileLocation: sourceFilePath,
+    tag,
+  };
+}

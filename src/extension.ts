@@ -117,7 +117,12 @@ import {
   extractToFragment,
 } from "./createNewFragmentComponentsUtils";
 import { experimentalModeEnabled, getPreferredFragmentPropName } from "./utils";
-import { findContext, complete, getSourceLocOfGraphQL } from "./contextUtils";
+import {
+  findContext,
+  complete,
+  getSourceLocOfGraphQL,
+  getFragmentDefinition,
+} from "./contextUtils";
 import {
   addFieldAtPosition,
   addFragmentSpreadAtPosition,
@@ -331,6 +336,57 @@ function initProviders(_context: ExtensionContext) {
         return processedItems.length > 0
           ? (processedItems.filter(Boolean) as CompletionItem[])
           : null;
+      }
+
+      return null;
+    },
+  });
+
+  // Jump to definition for various things
+  languages.registerDefinitionProvider("rescript", {
+    async provideDefinition(document, position) {
+      /**
+       * Special handling of things in GraphQL tags.
+       */
+      const op = getSelectedGraphQLOperation(document.getText(), position);
+
+      if (op != null) {
+        const selectedText = document.getWordRangeAtPosition(position);
+        if (selectedText != null) {
+          const isThisAFragmentSpread =
+            document.getText(
+              new Range(
+                new Position(
+                  selectedText.start.line,
+                  selectedText.start.character - 3
+                ),
+                selectedText.start
+              )
+            ) === "...";
+
+          if (isThisAFragmentSpread) {
+            const fragmentName = document.getText(selectedText);
+            const fragmentDef = await getFragmentDefinition(fragmentName);
+
+            if (fragmentDef != null) {
+              return [
+                {
+                  targetUri: fragmentDef.fileLocation,
+                  targetRange: new Range(
+                    new Position(
+                      fragmentDef.tag.start.line,
+                      fragmentDef.tag.start.character
+                    ),
+                    new Position(
+                      fragmentDef.tag.end.line,
+                      fragmentDef.tag.end.character
+                    )
+                  ),
+                },
+              ];
+            }
+          }
+        }
       }
 
       return null;
