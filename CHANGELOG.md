@@ -1,5 +1,7 @@
 ## main
 
+## 0.7.0
+
 - Enable all experimental features by default, and put most of them behind toggleable settings (that are on by default).
 
 ## 0.6.2
