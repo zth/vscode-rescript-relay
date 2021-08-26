@@ -1,5 +1,7 @@
 ## main
 
+- Enable all experimental features by default, and put most of them behind toggleable settings (that are on by default).
+
 ## 0.6.2
 
 - Detailed hover for `dataId`, and autocomplete (via pipe) `someDataId->RescriptRelay.dataIdToString` when possible.

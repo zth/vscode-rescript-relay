@@ -49,10 +49,20 @@
           "default": true,
           "description": "Prefer short names for generated fragments?"
         },
-        "rescript-relay.experimentalFeatures": {
+        "rescript-relay.autocompleteUnselectedGraphQLFields": {
           "type": "boolean",
-          "default": false,
-          "description": "Enable experimental features"
+          "default": true,
+          "description": "Enable autocomplete/insertion of unselected GraphQL fields"
+        },
+        "rescript-relay.contextualCompletions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable RescriptRelay specific autocompletions"
+        },
+        "rescript-relay.contextualHoverInfo": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable RescriptRelay specific hover info"
         },
         "graphql-config.load.rootDir": {
           "type": [

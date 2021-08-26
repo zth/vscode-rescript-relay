@@ -116,7 +116,7 @@ import {
   addFragmentHere,
   extractToFragment,
 } from "./createNewFragmentComponentsUtils";
-import { experimentalModeEnabled, getPreferredFragmentPropName } from "./utils";
+import { featureEnabled, getPreferredFragmentPropName } from "./utils";
 import {
   findContext,
   complete,
@@ -233,7 +233,7 @@ function initProviders(_context: ExtensionContext) {
   // Insert fragments etc
   languages.registerCompletionItemProvider("rescript", {
     async provideCompletionItems(document, selection) {
-      if (!experimentalModeEnabled()) {
+      if (!featureEnabled("contextualCompletions")) {
         return null;
       }
 
@@ -398,7 +398,7 @@ function initProviders(_context: ExtensionContext) {
     "rescript",
     {
       async provideCompletionItems(document, selection) {
-        if (!experimentalModeEnabled()) {
+        if (!featureEnabled("autocompleteUnselectedGraphQLFields")) {
           return null;
         }
 
@@ -427,7 +427,10 @@ function initProviders(_context: ExtensionContext) {
           return;
         }
 
-        if (positionCtx.type instanceof GraphQLObjectType) {
+        if (
+          positionCtx.type instanceof GraphQLObjectType ||
+          positionCtx.type instanceof GraphQLInterfaceType
+        ) {
           const existingFieldSelectionNames =
             positionCtx.astNode?.selectionSet?.selections
               .filter((s) => s.kind === "Field")
@@ -520,7 +523,7 @@ function initProviders(_context: ExtensionContext) {
     "rescript",
     {
       async provideCompletionItems(document, selection) {
-        if (!experimentalModeEnabled()) {
+        if (!featureEnabled("contextualCompletions")) {
           return null;
         }
 
@@ -601,7 +604,7 @@ function initProviders(_context: ExtensionContext) {
 
   languages.registerHoverProvider("rescript", {
     async provideHover(document, position) {
-      if (!experimentalModeEnabled()) {
+      if (!featureEnabled("contextualHoverInfo")) {
         return null;
       }
 
@@ -726,7 +729,7 @@ function initProviders(_context: ExtensionContext) {
       document,
       selection
     ): Promise<(CodeAction | Command)[] | undefined | null> {
-      if (!experimentalModeEnabled()) {
+      if (!featureEnabled("contextualCompletions")) {
         return null;
       }
 
