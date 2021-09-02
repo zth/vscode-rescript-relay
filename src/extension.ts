@@ -138,6 +138,7 @@ import {
   makeFieldSelection,
   getFirstField,
 } from "./graphqlUtilsNoVscode";
+import { validateRescriptVariableName } from "./extensionUtilsNoVscode";
 
 let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
 
@@ -1847,11 +1848,16 @@ function initCommands(context: ExtensionContext): void {
           return;
         }
 
-        const copyToClipboard =
-          (await window.showQuickPick(["Yes", "No"], {
-            placeHolder:
-              "Do you want to copy the JSX for using the new component to the clipboard?",
-          })) === "Yes";
+        const onType =
+          (await window.showInputBox({
+            prompt: `What do you want to call the prop name for the fragment?`,
+            value: selectedVariableName,
+            validateInput: (input) => {
+              if (!validateRescriptVariableName(input)) {
+                return "Invalid ReScript variable name";
+              }
+            },
+          })) ?? getPreferredFragmentPropName(type.name);
 
         const shouldOpenFile = await window.showQuickPick(
           ["Yes, in the current editor", "Yes, to the right", "No"],
@@ -1860,7 +1866,11 @@ function initCommands(context: ExtensionContext): void {
           }
         );
 
-        const onType = getPreferredFragmentPropName(type.name);
+        const copyToClipboard =
+          (await window.showQuickPick(["Yes", "No"], {
+            placeHolder:
+              "Do you want to copy the JSX for using the new component to the clipboard?",
+          })) === "Yes";
 
         const fragmentName = `${capitalize(newComponentName)}_${uncapitalize(
           onType
