@@ -33,6 +33,7 @@ import {
   CompletionItemKind,
   TextEdit,
   env,
+  ViewColumn,
 } from "vscode";
 
 import {
@@ -894,6 +895,7 @@ function initProviders(_context: ExtensionContext) {
 
       const actions: (CodeAction | Command)[] = [];
 
+      // Add current variable to operation variables
       if (firstDef && firstDef.kind === "OperationDefinition") {
         if (
           state.kind === "Variable" &&
@@ -933,6 +935,7 @@ function initProviders(_context: ExtensionContext) {
         }
       }
 
+      // Extracting to new fragments
       if (
         parentT &&
         (parentT instanceof GraphQLObjectType ||
@@ -1004,6 +1007,7 @@ function initProviders(_context: ExtensionContext) {
         }
       }
 
+      // Connection stuff
       if (
         (state.kind === "Field" || state.kind === "AliasedField") &&
         t instanceof GraphQLObjectType &&
@@ -1849,10 +1853,12 @@ function initCommands(context: ExtensionContext): void {
               "Do you want to copy the JSX for using the new component to the clipboard?",
           })) === "Yes";
 
-        const shouldOpenFileDirectly =
-          (await window.showQuickPick(["Yes", "No"], {
+        const shouldOpenFile = await window.showQuickPick(
+          ["Yes, in the current editor", "Yes, to the right", "No"],
+          {
             placeHolder: "Do you want to open the new file directly?",
-          })) === "Yes";
+          }
+        );
 
         const onType = getPreferredFragmentPropName(type.name);
 
@@ -1901,9 +1907,11 @@ function initCommands(context: ExtensionContext): void {
 
         const msg = `"${newComponentName}.res" was created with your new fragment.`;
 
-        if (shouldOpenFileDirectly) {
+        if (shouldOpenFile === "Yes, in the current editor") {
           window.showTextDocument(newDoc);
-        } else {
+        } else if (shouldOpenFile === "Yes, to the right") {
+          window.showTextDocument(newDoc, ViewColumn.Beside, true);
+        } else if (shouldOpenFile === "No") {
           window.showInformationMessage(msg, "Open file").then((m) => {
             if (m) {
               window.showTextDocument(newDoc);
