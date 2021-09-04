@@ -1,127 +1,81 @@
-import * as path from "path";
-import * as fs from "fs";
-import { pascalCase } from "pascal-case";
 import * as cp from "child_process";
-// @ts-ignore
-import kill from "tree-kill";
-
+import watchman from "fb-watchman";
+import * as fs from "fs";
 import {
-  workspace,
-  ExtensionContext,
-  window,
-  OutputChannel,
-  commands,
-  TextEditorEdit,
-  Range,
-  Position,
-  languages,
-  CodeAction,
-  Uri,
-  CodeActionKind,
-  WorkspaceEdit,
-  TextEditor,
-  ProgressLocation,
-  Selection,
-  StatusBarAlignment,
-  Diagnostic,
-  Disposable as VSCodeDisposable,
-  StatusBarItem,
-  Location,
-  Hover,
-  MarkdownString,
-  CompletionItem,
-  CompletionItemKind,
-  TextEdit,
-  env,
-} from "vscode";
-
-import {
-  LanguageClientOptions,
-  Command,
-  RevealOutputChannelOn,
-  Disposable,
-  HandleDiagnosticsSignature,
-  ServerOptions,
-  LanguageClient,
-  TransportKind,
-} from "vscode-languageclient/node";
-
-import {
-  prettify,
-  restoreOperationPadding,
-  uncapitalize,
-  capitalize,
-  wrapInJsx,
-  getNormalizedSelection,
-} from "./extensionUtils";
-import {
-  extractGraphQLSources,
-  getSelectedGraphQLOperation,
-} from "./findGraphQLSources";
+  ArgumentNode,
+  ASTNode,
+  FieldNode,
+  FragmentDefinitionNode,
+  FragmentSpreadNode,
+  getLocation,
+  getNamedType,
+  GraphQLCompositeType,
+  GraphQLInterfaceType,
+  GraphQLObjectType,
+  GraphQLUnionType,
+  InlineFragmentNode,
+  OperationDefinitionNode,
+  parse,
+  print,
+  SelectionNode,
+  SelectionSetNode,
+  Source,
+  visit,
+} from "graphql";
 import {
   getTokenAtPosition,
   getTypeInfo,
 } from "graphql-language-service-interface/dist/getAutocompleteSuggestions";
 import { Position as GraphQLPosition } from "graphql-language-service-utils";
-
-import { GraphQLSource, GraphQLSourceFromTag } from "./extensionTypes";
-
+import { pascalCase } from "pascal-case";
+import * as path from "path";
+// @ts-ignore
+import kill from "tree-kill";
+import {
+  CodeAction,
+  CodeActionKind,
+  commands,
+  CompletionItem,
+  CompletionItemKind,
+  Diagnostic,
+  Disposable as VSCodeDisposable,
+  env,
+  ExtensionContext,
+  Hover,
+  languages,
+  Location,
+  MarkdownString,
+  OutputChannel,
+  Position,
+  ProgressLocation,
+  Range,
+  Selection,
+  StatusBarAlignment,
+  StatusBarItem,
+  TextEdit,
+  TextEditor,
+  TextEditorEdit,
+  Uri,
+  window,
+  workspace,
+  WorkspaceEdit,
+} from "vscode";
+import {
+  Command,
+  Disposable,
+  HandleDiagnosticsSignature,
+  LanguageClient,
+  LanguageClientOptions,
+  RevealOutputChannelOn,
+  ServerOptions,
+  TransportKind,
+} from "vscode-languageclient/node";
 import { addGraphQLComponent } from "./addGraphQLComponent";
 import {
-  parse,
-  GraphQLObjectType,
-  print,
-  visit,
-  Source,
-  FragmentSpreadNode,
-  SelectionNode,
-  getNamedType,
-  ASTNode,
-  FieldNode,
-  GraphQLUnionType,
-  SelectionSetNode,
-  InlineFragmentNode,
-  GraphQLInterfaceType,
-  OperationDefinitionNode,
-  ArgumentNode,
-  FragmentDefinitionNode,
-  getLocation,
-  GraphQLCompositeType,
-} from "graphql";
-import {
-  loadFullSchema,
-  getCurrentWorkspaceRoot,
-  cacheControl,
-  loadRelayConfig,
-  loadGraphQLConfig,
-  isReScriptRelayProject,
-} from "./loadSchema";
-import {
-  nodeHasVariable,
-  makeVariableDefinitionNode,
-  runOnNodeAtPos,
-  nodeHasDirective,
-  addDirectiveToNode,
-  makeArgumentDefinitionVariable,
-  findPath,
-  makeArgument,
-  makeFragment,
-  makeConnectionsVariable,
-  pickTypeForFragment,
-  getFragmentComponentText,
-  getNewFilePath,
-  getAdjustedPosition,
-} from "./graphqlUtils";
-import {
-  addFragmentHere,
-  extractToFragment,
-} from "./createNewFragmentComponentsUtils";
-import { featureEnabled, getPreferredFragmentPropName } from "./utils";
-import {
-  findContext,
   complete,
-  getSourceLocOfGraphQL,
+  findContext,
   getFragmentDefinition,
+  getSourceLocOfGraphQL,
 } from "./contextUtils";
 import {
   addFieldAtPosition,
@@ -133,10 +87,52 @@ import {
   namedTypeToString,
 } from "./contextUtilsNoVscode";
 import {
-  makeSelectionSet,
-  makeFieldSelection,
+  addFragmentHere,
+  extractToFragment,
+} from "./createNewFragmentComponentsUtils";
+import { GraphQLSource, GraphQLSourceFromTag } from "./extensionTypes";
+import {
+  capitalize,
+  getNormalizedSelection,
+  prettify,
+  restoreOperationPadding,
+  uncapitalize,
+  wrapInJsx,
+} from "./extensionUtils";
+import {
+  extractGraphQLSources,
+  getSelectedGraphQLOperation,
+} from "./findGraphQLSources";
+import {
+  addDirectiveToNode,
+  findPath,
+  getAdjustedPosition,
+  getFragmentComponentText,
+  getNewFilePath,
+  makeArgument,
+  makeArgumentDefinitionVariable,
+  makeConnectionsVariable,
+  makeFragment,
+  makeVariableDefinitionNode,
+  nodeHasDirective,
+  nodeHasVariable,
+  pickTypeForFragment,
+  runOnNodeAtPos,
+} from "./graphqlUtils";
+import {
   getFirstField,
+  makeFieldSelection,
+  makeSelectionSet,
 } from "./graphqlUtilsNoVscode";
+import {
+  cacheControl,
+  getCurrentWorkspaceRoot,
+  isReScriptRelayProject,
+  loadFullSchema,
+  loadGraphQLConfig,
+  loadRelayConfig,
+} from "./loadSchema";
+import { featureEnabled, getPreferredFragmentPropName } from "./utils";
 
 let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
 
@@ -2303,6 +2299,27 @@ export async function activate(context: ExtensionContext) {
       item.command = "vscode-rescript-relay.show-relay-compiler-output";
       item.tooltip = "Click to see full output";
     }
+
+    function checkThatWatchmanIsInstalled() {
+      const client = new watchman.Client();
+      client.capabilityCheck({ optional: [], required: [] }, () => {});
+      const installText = "Open install instructions";
+      client.on("error", () =>
+        window
+          .showErrorMessage("Error watchman not installed", installText)
+          .then((item) => {
+            if (item === installText) {
+              env.openExternal(
+                Uri.parse(
+                  "https://facebook.github.io/watchman/docs/install.html"
+                )
+              );
+            }
+          })
+      );
+    }
+
+    checkThatWatchmanIsInstalled();
 
     setStatusBarItemToStart(mainItem);
     mainItem.show();

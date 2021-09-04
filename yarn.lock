@@ -729,6 +729,11 @@
   resolved "https://registry.yarnpkg.com/@types/estree/-/estree-0.0.48.tgz#18dc8091b285df90db2f25aa7d906cfc394b7f74"
   integrity sha512-LfZwXoGUDo0C3me81HXgkBg5CTQYb6xzEl+fNmbO4JdRiSKQ8A0GD1OBBvKAIsbCUgoyAty7m99GqqMQe784ew==
 
+"@types/fb-watchman@^2.0.1":
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/@types/fb-watchman/-/fb-watchman-2.0.1.tgz#4f44c7b7ac98463488765d41d269272dd34cb815"
+  integrity sha512-iJ7/e6drSmuCzAp96/dpksm8YjxbhhyXWV6m1HPbRHvZwUOUZ5vZvZIAUJxKDtI0UpdNfDvLPiai0MTJmmS+HA==
+
 "@types/graceful-fs@^4.1.2":
   version "4.1.4"
   resolved "https://registry.yarnpkg.com/@types/graceful-fs/-/graceful-fs-4.1.4.tgz#4ff9f641a7c6d1a3508ff88bc3141b152772e753"

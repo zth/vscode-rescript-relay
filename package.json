@@ -175,6 +175,7 @@
   },
   "devDependencies": {
     "@types/codemirror": "^5.60.0",
+    "@types/fb-watchman": "^2.0.1",
     "@types/jest": "26.0.20",
     "@types/line-reader": "^0.0.34",
     "@types/node": "14.14.33",
