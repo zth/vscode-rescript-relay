@@ -6,7 +6,7 @@ Please report any issues you might have to the main [RescriptRelay issue tracker
 
 ## Setup
 
-Right now, you'll need to open VSCode in the _root where you've installed Relay_ and that folder must be part of a Git Repository. For monorepos, this means you'll need to open the subfolder where your frontend project using Relay is located. This will hopefully be fixed in the future.
+Right now, you'll need to open VSCode in the _root where you've installed Relay_ and that folder must be part of a Git Repository. For monorepos, this means you'll need to open the subfolder where your frontend project using Relay is located. This will hopefully be fixed in the future. You'll need to have [watchman](https://facebook.github.io/watchman/docs/install.html) installed for the relay compiler to be able to run automatically.
 
 This extension should _Just Work(tm)_, as it finds and uses your `relay.config.js`.
 
