@@ -1155,11 +1155,14 @@ function initProviders(_context: ExtensionContext) {
                     },
                   ]),
                   arguments: [
-                    makeArgument("first", {
-                      kind: "IntValue",
-                      value: "200",
-                    }),
-                  ],
+                    ...(n.arguments ?? []),
+                    n.arguments?.some((arg) => arg.name.value === "first")
+                      ? null
+                      : makeArgument("first", {
+                          kind: "IntValue",
+                          value: "200",
+                        }),
+                  ].filter(Boolean) as ArgumentNode[],
                   selectionSet:
                     node.selectionSet && node.selectionSet.selections.length > 0
                       ? node.selectionSet
