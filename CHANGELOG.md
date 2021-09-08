@@ -1,5 +1,7 @@
 ## main
 
+## 0.8.0
+
 - Trigger completion of fragment components on dot-based autocompletes.
 - More elborate control over how new fragment components are named.
 - Various bug fixes for the `@connection` code action.
