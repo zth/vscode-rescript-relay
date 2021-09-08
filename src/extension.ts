@@ -129,6 +129,7 @@ import {
   GraphQLRecordCtx,
   GraphQLType,
   namedTypeToString,
+  getConnectionKeyName,
 } from "./contextUtilsNoVscode";
 import {
   makeSelectionSet,
@@ -1132,7 +1133,7 @@ function initProviders(_context: ExtensionContext) {
             document.uri,
             selectedOp,
             visit(parsedOp, {
-              Field(node) {
+              Field(node, _b, _c, _d, ancestors) {
                 return runOnNodeAtPos(source, node, startPos, (n) => ({
                   ...addDirectiveToNode(n, "connection", [
                     {
@@ -1143,7 +1144,13 @@ function initProviders(_context: ExtensionContext) {
                       },
                       value: {
                         kind: "StringValue",
-                        value: findPath(state).reverse().join("_"),
+                        value: getConnectionKeyName(
+                          ancestors,
+                          node,
+                          firstDef.kind === "FragmentDefinition"
+                            ? firstDef.name.value
+                            : "unknown"
+                        ),
                       },
                     },
                   ]),
