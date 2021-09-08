@@ -1,5 +1,8 @@
 ## main
 
+- Trigger completion of fragment components on dot-based autocompletes.
+- More elborate control over how new fragment components are named.
+
 ## 0.7.0
 
 - Enable all experimental features by default, and put most of them behind toggleable settings (that are on by default).
