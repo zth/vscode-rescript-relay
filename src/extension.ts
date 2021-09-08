@@ -1,81 +1,128 @@
+import * as path from "path";
+import * as fs from "fs";
+import { pascalCase } from "pascal-case";
 import * as cp from "child_process";
 import watchman from "fb-watchman";
-import * as fs from "fs";
+// @ts-ignore
+import kill from "tree-kill";
+
 import {
-  ArgumentNode,
-  ASTNode,
-  FieldNode,
-  FragmentDefinitionNode,
-  FragmentSpreadNode,
-  getLocation,
-  getNamedType,
-  GraphQLCompositeType,
-  GraphQLInterfaceType,
-  GraphQLObjectType,
-  GraphQLUnionType,
-  InlineFragmentNode,
-  OperationDefinitionNode,
-  parse,
-  print,
-  SelectionNode,
-  SelectionSetNode,
-  Source,
-  visit,
-} from "graphql";
+  workspace,
+  ExtensionContext,
+  window,
+  OutputChannel,
+  commands,
+  TextEditorEdit,
+  Range,
+  Position,
+  languages,
+  CodeAction,
+  Uri,
+  CodeActionKind,
+  WorkspaceEdit,
+  TextEditor,
+  ProgressLocation,
+  Selection,
+  StatusBarAlignment,
+  Diagnostic,
+  Disposable as VSCodeDisposable,
+  StatusBarItem,
+  Location,
+  Hover,
+  MarkdownString,
+  CompletionItem,
+  CompletionItemKind,
+  TextEdit,
+  env,
+} from "vscode";
+
+import {
+  LanguageClientOptions,
+  Command,
+  RevealOutputChannelOn,
+  Disposable,
+  HandleDiagnosticsSignature,
+  ServerOptions,
+  LanguageClient,
+  TransportKind,
+} from "vscode-languageclient/node";
+
+import {
+  prettify,
+  restoreOperationPadding,
+  uncapitalize,
+  capitalize,
+  wrapInJsx,
+  getNormalizedSelection,
+} from "./extensionUtils";
+import {
+  extractGraphQLSources,
+  getSelectedGraphQLOperation,
+} from "./findGraphQLSources";
 import {
   getTokenAtPosition,
   getTypeInfo,
 } from "graphql-language-service-interface/dist/getAutocompleteSuggestions";
 import { Position as GraphQLPosition } from "graphql-language-service-utils";
-import { pascalCase } from "pascal-case";
-import * as path from "path";
-// @ts-ignore
-import kill from "tree-kill";
-import {
-  CodeAction,
-  CodeActionKind,
-  commands,
-  CompletionItem,
-  CompletionItemKind,
-  Diagnostic,
-  Disposable as VSCodeDisposable,
-  env,
-  ExtensionContext,
-  Hover,
-  languages,
-  Location,
-  MarkdownString,
-  OutputChannel,
-  Position,
-  ProgressLocation,
-  Range,
-  Selection,
-  StatusBarAlignment,
-  StatusBarItem,
-  TextEdit,
-  TextEditor,
-  TextEditorEdit,
-  Uri,
-  window,
-  workspace,
-  WorkspaceEdit,
-} from "vscode";
-import {
-  Command,
-  Disposable,
-  HandleDiagnosticsSignature,
-  LanguageClient,
-  LanguageClientOptions,
-  RevealOutputChannelOn,
-  ServerOptions,
-  TransportKind,
-} from "vscode-languageclient/node";
+
+import { GraphQLSource, GraphQLSourceFromTag } from "./extensionTypes";
+
 import { addGraphQLComponent } from "./addGraphQLComponent";
 import {
-  complete,
+  parse,
+  GraphQLObjectType,
+  print,
+  visit,
+  Source,
+  FragmentSpreadNode,
+  SelectionNode,
+  getNamedType,
+  ASTNode,
+  FieldNode,
+  GraphQLUnionType,
+  SelectionSetNode,
+  InlineFragmentNode,
+  GraphQLInterfaceType,
+  OperationDefinitionNode,
+  ArgumentNode,
+  FragmentDefinitionNode,
+  getLocation,
+  GraphQLCompositeType,
+} from "graphql";
+import {
+  loadFullSchema,
+  getCurrentWorkspaceRoot,
+  cacheControl,
+  loadRelayConfig,
+  loadGraphQLConfig,
+  isReScriptRelayProject,
+} from "./loadSchema";
+import {
+  nodeHasVariable,
+  makeVariableDefinitionNode,
+  runOnNodeAtPos,
+  nodeHasDirective,
+  addDirectiveToNode,
+  makeArgumentDefinitionVariable,
+  findPath,
+  makeArgument,
+  makeFragment,
+  makeConnectionsVariable,
+  pickTypeForFragment,
+  getFragmentComponentText,
+  getNewFilePath,
+  getAdjustedPosition,
+} from "./graphqlUtils";
+import {
+  addFragmentHere,
+  extractToFragment,
+} from "./createNewFragmentComponentsUtils";
+import { featureEnabled, getPreferredFragmentPropName } from "./utils";
+import {
   findContext,
-  getFragmentDefinition,
+  complete,
   getSourceLocOfGraphQL,
+  getFragmentDefinition,
 } from "./contextUtils";
 import {
   addFieldAtPosition,
@@ -87,52 +134,10 @@ import {
   namedTypeToString,
 } from "./contextUtilsNoVscode";
 import {
-  addFragmentHere,
-  extractToFragment,
-} from "./createNewFragmentComponentsUtils";
-import { GraphQLSource, GraphQLSourceFromTag } from "./extensionTypes";
-import {
-  capitalize,
-  getNormalizedSelection,
-  prettify,
-  restoreOperationPadding,
-  uncapitalize,
-  wrapInJsx,
-} from "./extensionUtils";
-import {
-  extractGraphQLSources,
-  getSelectedGraphQLOperation,
-} from "./findGraphQLSources";
-import {
-  addDirectiveToNode,
-  findPath,
-  getAdjustedPosition,
-  getFragmentComponentText,
-  getNewFilePath,
-  makeArgument,
-  makeArgumentDefinitionVariable,
-  makeConnectionsVariable,
-  makeFragment,
-  makeVariableDefinitionNode,
-  nodeHasDirective,
-  nodeHasVariable,
-  pickTypeForFragment,
-  runOnNodeAtPos,
-} from "./graphqlUtils";
-import {
-  getFirstField,
-  makeFieldSelection,
   makeSelectionSet,
+  makeFieldSelection,
+  getFirstField,
 } from "./graphqlUtilsNoVscode";
-import {
-  cacheControl,
-  getCurrentWorkspaceRoot,
-  isReScriptRelayProject,
-  loadFullSchema,
-  loadGraphQLConfig,
-  loadRelayConfig,
-} from "./loadSchema";
-import { featureEnabled, getPreferredFragmentPropName } from "./utils";
 
 let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
 
@@ -2306,7 +2311,10 @@ export async function activate(context: ExtensionContext) {
       const installText = "Open install instructions";
       client.on("error", () =>
         window
-          .showErrorMessage("Error watchman not installed", installText)
+          .showWarningMessage(
+            "watchman not installed. It's required to run the relay compiler automatically",
+            installText
+          )
           .then((item) => {
             if (item === installText) {
               env.openExternal(
