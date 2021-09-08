@@ -54,6 +54,8 @@ import {
   capitalize,
   wrapInJsx,
   getNormalizedSelection,
+  fillInFileDataForFragmentSpreadCompletionItems,
+  createCompletionItemsForFragmentSpreads,
 } from "./extensionUtils";
 import {
   extractGraphQLSources,
@@ -118,12 +120,7 @@ import {
   extractToFragment,
 } from "./createNewFragmentComponentsUtils";
 import { featureEnabled, getPreferredFragmentPropName } from "./utils";
-import {
-  findContext,
-  complete,
-  getSourceLocOfGraphQL,
-  getFragmentDefinition,
-} from "./contextUtils";
+import { findContext, complete, getFragmentDefinition } from "./contextUtils";
 import {
   addFieldAtPosition,
   addFragmentSpreadAtPosition,
@@ -138,7 +135,10 @@ import {
   makeFieldSelection,
   getFirstField,
 } from "./graphqlUtilsNoVscode";
-import { validateRescriptVariableName } from "./extensionUtilsNoVscode";
+import {
+  extractFragmentRefs,
+  validateRescriptVariableName,
+} from "./extensionUtilsNoVscode";
 
 let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
 
@@ -294,55 +294,66 @@ function initProviders(_context: ExtensionContext) {
                   !s.directives?.some((d) => d.name.value === "inline")
               ) ?? []) as FragmentSpreadNode[];
 
-              fragmentSpreads.forEach((spreadNode) => {
-                const item = new CompletionItem(
-                  `${curr.label}: ${spreadNode.name.value}`
-                );
-                item.sortText = `zz ${curr.label} ${spreadNode.name.value}`;
-                item.detail = `Component for \`${spreadNode.name.value}\``;
+              const completionItems = createCompletionItemsForFragmentSpreads(
+                curr.label,
+                fragmentSpreads.map((node) => node.name.value)
+              );
 
-                // @ts-ignore
-                item.__extra = {
-                  label: curr.label,
-                  fragmentName: spreadNode.name.value,
-                };
-
-                acc.push(item);
-              });
+              acc.push(...completionItems);
             }
 
             return acc;
           }, []);
 
         // Now fill in all file data
-        const processedItems: (CompletionItem | null)[] = await Promise.all(
-          items.map(async (item) => {
-            const extra: { label: string; fragmentName: string } = (item as any)
-              .__extra;
-
-            const sourceLoc = await getSourceLocOfGraphQL(extra.fragmentName);
-
-            if (sourceLoc == null) {
-              return null;
-            }
-
-            // Infer propname
-            const propName = extra.fragmentName.split("_").pop() ?? extra.label;
-
-            item.insertText = `<${sourceLoc.componentName} ${propName}={${extra.label}.fragmentRefs} />`;
-
-            return item;
-          })
-        );
-
-        return processedItems.length > 0
-          ? (processedItems.filter(Boolean) as CompletionItem[])
-          : null;
+        return fillInFileDataForFragmentSpreadCompletionItems(items);
       }
 
       return null;
     },
   });
+
+  languages.registerCompletionItemProvider(
+    "rescript",
+    {
+      async provideCompletionItems(document, selection) {
+        if (!featureEnabled("contextualCompletions")) {
+          return null;
+        }
+
+        const completion = complete(document, selection);
+
+        if (completion != null) {
+          const schema = await loadFullSchema();
+
+          if (schema == null) {
+            return null;
+          }
+
+          const fragmentRefs = completion.find(
+            (c) => c.label === "fragmentRefs"
+          );
+
+          if (fragmentRefs != null) {
+            const frefs = extractFragmentRefs(fragmentRefs.detail);
+
+            const completionItems = createCompletionItemsForFragmentSpreads(
+              "fragment",
+              frefs
+            );
+
+            return fillInFileDataForFragmentSpreadCompletionItems(
+              completionItems,
+              true
+            );
+          }
+        }
+
+        return null;
+      },
+    },
+    "."
+  );
 
   // Jump to definition for various things
   languages.registerDefinitionProvider("rescript", {
@@ -2065,6 +2076,44 @@ function initCommands(context: ExtensionContext): void {
           [],
           "goto"
         );
+      }
+    ),
+    commands.registerCommand(
+      "vscode-rescript-relay.replace-current-dot-completion",
+      async (createInsertText: (symbol: string) => string) => {
+        const editor = window.activeTextEditor!;
+
+        // This tries to get the range for the symbol that triggered the autocomplete
+        const currentNameRange = editor.document.getWordRangeAtPosition(
+          new Position(
+            editor.selection.start.line,
+            editor.selection.start.character - 2
+          )
+        );
+
+        if (currentNameRange != null) {
+          const symbol = editor.document.getText(currentNameRange);
+          // Replace the symbol and the . that triggered the completion
+          const success = await editor.edit((edit) => {
+            edit.replace(
+              new Range(
+                currentNameRange.start,
+                new Position(
+                  currentNameRange.end.line,
+                  currentNameRange.end.character + 1
+                )
+              ),
+              createInsertText(symbol)
+            );
+          });
+
+          if (success) {
+            editor.selection = new Selection(
+              currentNameRange.start,
+              currentNameRange.start
+            );
+          }
+        }
       }
     ),
     commands.registerCommand(

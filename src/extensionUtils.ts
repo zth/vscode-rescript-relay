@@ -1,7 +1,15 @@
 import * as prettier from "prettier/standalone";
 import * as parserGraphql from "prettier/parser-graphql";
-import { window, commands, Range, Selection, Position } from "vscode";
+import {
+  window,
+  commands,
+  Range,
+  Selection,
+  Position,
+  CompletionItem,
+} from "vscode";
 import { GraphQLSourceFromTag } from "./extensionTypes";
+import { getSourceLocOfGraphQL } from "./contextUtils";
 
 export const getNormalizedSelection = (
   range: Range,
@@ -124,3 +132,67 @@ export async function wrapInJsx(
     }
   }
 }
+
+export const createCompletionItemsForFragmentSpreads = (
+  label: string,
+  spreads: string[]
+) => {
+  const items: CompletionItem[] = [];
+
+  spreads.forEach((spread) => {
+    const item = new CompletionItem(`${label}: ${spread}`);
+    item.sortText = `zz ${label} ${spread}`;
+    item.detail = `Component for \`${spread}\``;
+
+    // @ts-ignore
+    item.__extra = {
+      label: label,
+      fragmentName: spread,
+    };
+
+    items.push(item);
+  });
+
+  return items;
+};
+
+export const fillInFileDataForFragmentSpreadCompletionItems = async (
+  items: CompletionItem[],
+  viaCommand = false
+) => {
+  const processedItems: (CompletionItem | null)[] = await Promise.all(
+    items.map(async (item) => {
+      const extra: { label: string; fragmentName: string } = (item as any)
+        .__extra;
+
+      const sourceLoc = await getSourceLocOfGraphQL(extra.fragmentName);
+
+      if (sourceLoc == null) {
+        return null;
+      }
+
+      // Infer propname
+      const propName = extra.fragmentName.split("_").pop() ?? extra.label;
+
+      if (viaCommand) {
+        item.insertText = "";
+        item.command = {
+          command: "vscode-rescript-relay.replace-current-dot-completion",
+          title: "",
+          arguments: [
+            (symbol: string) =>
+              `<${sourceLoc.componentName} ${propName}={${symbol}.fragmentRefs} />`,
+          ],
+        };
+      } else {
+        item.insertText = `<${sourceLoc.componentName} ${propName}={${extra.label}.fragmentRefs} />`;
+      }
+
+      return item;
+    })
+  );
+
+  return processedItems.length > 0
+    ? (processedItems.filter(Boolean) as CompletionItem[])
+    : null;
+};
