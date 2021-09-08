@@ -3,6 +3,7 @@ import {
   runHoverCommand,
   runTypeDefinitionCommand,
 } from "./ReScriptEditorSupport";
+import LRU from "lru-cache";
 import {
   extensions,
   TextDocument,
@@ -195,7 +196,20 @@ function getTypeDefCtx(
   return extractContextFromTypeDefinition(position, document, uri, range);
 }
 
+const makeCompletionCacheKey = (text: string, selection: Position): string =>
+  `${text}/${selection.line}:${selection.character}`;
+
+const completionCache = new LRU<string, { label: string; detail: string }[]>(5);
+
 export function complete(document: TextDocument, selection: Position) {
+  const text = document.getText();
+  const completionCacheKey = makeCompletionCacheKey(text, selection);
+  const cached = completionCache.get(completionCacheKey);
+
+  if (cached) {
+    return cached;
+  }
+
   const extensionPath = extensions.getExtension("chenglou92.rescript-vscode")
     ?.extensionPath;
 
@@ -219,12 +233,13 @@ export function complete(document: TextDocument, selection: Position) {
         method: "textDocument/completion",
         params,
       },
-      document.getText(),
+      text,
       extensionPath
       // @ts-ignore
     ).result as null | { label: string; detail: string }[];
 
     if (res != null) {
+      completionCache.set(completionCacheKey, res);
       r = res;
     }
   } catch (e) {

@@ -33,6 +33,7 @@ import {
   CompletionItemKind,
   TextEdit,
   env,
+  ViewColumn,
 } from "vscode";
 
 import {
@@ -53,6 +54,8 @@ import {
   capitalize,
   wrapInJsx,
   getNormalizedSelection,
+  fillInFileDataForFragmentSpreadCompletionItems,
+  createCompletionItemsForFragmentSpreads,
 } from "./extensionUtils";
 import {
   extractGraphQLSources,
@@ -117,12 +120,7 @@ import {
   extractToFragment,
 } from "./createNewFragmentComponentsUtils";
 import { featureEnabled, getPreferredFragmentPropName } from "./utils";
-import {
-  findContext,
-  complete,
-  getSourceLocOfGraphQL,
-  getFragmentDefinition,
-} from "./contextUtils";
+import { findContext, complete, getFragmentDefinition } from "./contextUtils";
 import {
   addFieldAtPosition,
   addFragmentSpreadAtPosition,
@@ -131,12 +129,17 @@ import {
   GraphQLRecordCtx,
   GraphQLType,
   namedTypeToString,
+  getConnectionKeyName,
 } from "./contextUtilsNoVscode";
 import {
   makeSelectionSet,
   makeFieldSelection,
   getFirstField,
 } from "./graphqlUtilsNoVscode";
+import {
+  extractFragmentRefs,
+  validateRescriptVariableName,
+} from "./extensionUtilsNoVscode";
 
 let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
 
@@ -292,55 +295,66 @@ function initProviders(_context: ExtensionContext) {
                   !s.directives?.some((d) => d.name.value === "inline")
               ) ?? []) as FragmentSpreadNode[];
 
-              fragmentSpreads.forEach((spreadNode) => {
-                const item = new CompletionItem(
-                  `${curr.label}: ${spreadNode.name.value}`
-                );
-                item.sortText = `zz ${curr.label} ${spreadNode.name.value}`;
-                item.detail = `Component for \`${spreadNode.name.value}\``;
+              const completionItems = createCompletionItemsForFragmentSpreads(
+                curr.label,
+                fragmentSpreads.map((node) => node.name.value)
+              );
 
-                // @ts-ignore
-                item.__extra = {
-                  label: curr.label,
-                  fragmentName: spreadNode.name.value,
-                };
-
-                acc.push(item);
-              });
+              acc.push(...completionItems);
             }
 
             return acc;
           }, []);
 
         // Now fill in all file data
-        const processedItems: (CompletionItem | null)[] = await Promise.all(
-          items.map(async (item) => {
-            const extra: { label: string; fragmentName: string } = (item as any)
-              .__extra;
-
-            const sourceLoc = await getSourceLocOfGraphQL(extra.fragmentName);
-
-            if (sourceLoc == null) {
-              return null;
-            }
-
-            // Infer propname
-            const propName = extra.fragmentName.split("_").pop() ?? extra.label;
-
-            item.insertText = `<${sourceLoc.componentName} ${propName}={${extra.label}.fragmentRefs} />`;
-
-            return item;
-          })
-        );
-
-        return processedItems.length > 0
-          ? (processedItems.filter(Boolean) as CompletionItem[])
-          : null;
+        return fillInFileDataForFragmentSpreadCompletionItems(items);
       }
 
       return null;
     },
   });
+
+  languages.registerCompletionItemProvider(
+    "rescript",
+    {
+      async provideCompletionItems(document, selection) {
+        if (!featureEnabled("contextualCompletions")) {
+          return null;
+        }
+
+        const completion = complete(document, selection);
+
+        if (completion != null) {
+          const schema = await loadFullSchema();
+
+          if (schema == null) {
+            return null;
+          }
+
+          const fragmentRefs = completion.find(
+            (c) => c.label === "fragmentRefs"
+          );
+
+          if (fragmentRefs != null) {
+            const frefs = extractFragmentRefs(fragmentRefs.detail);
+
+            const completionItems = createCompletionItemsForFragmentSpreads(
+              "fragment",
+              frefs
+            );
+
+            return fillInFileDataForFragmentSpreadCompletionItems(
+              completionItems,
+              true
+            );
+          }
+        }
+
+        return null;
+      },
+    },
+    "."
+  );
 
   // Jump to definition for various things
   languages.registerDefinitionProvider("rescript", {
@@ -894,6 +908,7 @@ function initProviders(_context: ExtensionContext) {
 
       const actions: (CodeAction | Command)[] = [];
 
+      // Add current variable to operation variables
       if (firstDef && firstDef.kind === "OperationDefinition") {
         if (
           state.kind === "Variable" &&
@@ -933,6 +948,7 @@ function initProviders(_context: ExtensionContext) {
         }
       }
 
+      // Extracting to new fragments
       if (
         parentT &&
         (parentT instanceof GraphQLObjectType ||
@@ -1004,6 +1020,7 @@ function initProviders(_context: ExtensionContext) {
         }
       }
 
+      // Connection stuff
       if (
         (state.kind === "Field" || state.kind === "AliasedField") &&
         t instanceof GraphQLObjectType &&
@@ -1116,7 +1133,7 @@ function initProviders(_context: ExtensionContext) {
             document.uri,
             selectedOp,
             visit(parsedOp, {
-              Field(node) {
+              Field(node, _b, _c, _d, ancestors) {
                 return runOnNodeAtPos(source, node, startPos, (n) => ({
                   ...addDirectiveToNode(n, "connection", [
                     {
@@ -1127,16 +1144,25 @@ function initProviders(_context: ExtensionContext) {
                       },
                       value: {
                         kind: "StringValue",
-                        value: findPath(state).reverse().join("_"),
+                        value: getConnectionKeyName(
+                          ancestors,
+                          node,
+                          firstDef.kind === "FragmentDefinition"
+                            ? firstDef.name.value
+                            : "unknown"
+                        ),
                       },
                     },
                   ]),
                   arguments: [
-                    makeArgument("first", {
-                      kind: "IntValue",
-                      value: "200",
-                    }),
-                  ],
+                    ...(n.arguments ?? []),
+                    n.arguments?.some((arg) => arg.name.value === "first")
+                      ? null
+                      : makeArgument("first", {
+                          kind: "IntValue",
+                          value: "200",
+                        }),
+                  ].filter(Boolean) as ArgumentNode[],
                   selectionSet:
                     node.selectionSet && node.selectionSet.selections.length > 0
                       ? node.selectionSet
@@ -1843,18 +1869,29 @@ function initCommands(context: ExtensionContext): void {
           return;
         }
 
+        const onType =
+          (await window.showInputBox({
+            prompt: `What do you want to call the prop name for the fragment?`,
+            value: selectedVariableName,
+            validateInput: (input) => {
+              if (!validateRescriptVariableName(input)) {
+                return "Invalid ReScript variable name";
+              }
+            },
+          })) ?? getPreferredFragmentPropName(type.name);
+
+        const shouldOpenFile = await window.showQuickPick(
+          ["Yes, in the current editor", "Yes, to the right", "No"],
+          {
+            placeHolder: "Do you want to open the new file directly?",
+          }
+        );
+
         const copyToClipboard =
           (await window.showQuickPick(["Yes", "No"], {
             placeHolder:
               "Do you want to copy the JSX for using the new component to the clipboard?",
           })) === "Yes";
-
-        const shouldOpenFileDirectly =
-          (await window.showQuickPick(["Yes", "No"], {
-            placeHolder: "Do you want to open the new file directly?",
-          })) === "Yes";
-
-        const onType = getPreferredFragmentPropName(type.name);
 
         const fragmentName = `${capitalize(newComponentName)}_${uncapitalize(
           onType
@@ -1901,9 +1938,11 @@ function initCommands(context: ExtensionContext): void {
 
         const msg = `"${newComponentName}.res" was created with your new fragment.`;
 
-        if (shouldOpenFileDirectly) {
+        if (shouldOpenFile === "Yes, in the current editor") {
           window.showTextDocument(newDoc);
-        } else {
+        } else if (shouldOpenFile === "Yes, to the right") {
+          window.showTextDocument(newDoc, ViewColumn.Beside, true);
+        } else if (shouldOpenFile === "No") {
           window.showInformationMessage(msg, "Open file").then((m) => {
             if (m) {
               window.showTextDocument(newDoc);
@@ -2047,6 +2086,44 @@ function initCommands(context: ExtensionContext): void {
           [],
           "goto"
         );
+      }
+    ),
+    commands.registerCommand(
+      "vscode-rescript-relay.replace-current-dot-completion",
+      async (createInsertText: (symbol: string) => string) => {
+        const editor = window.activeTextEditor!;
+
+        // This tries to get the range for the symbol that triggered the autocomplete
+        const currentNameRange = editor.document.getWordRangeAtPosition(
+          new Position(
+            editor.selection.start.line,
+            editor.selection.start.character - 2
+          )
+        );
+
+        if (currentNameRange != null) {
+          const symbol = editor.document.getText(currentNameRange);
+          // Replace the symbol and the . that triggered the completion
+          const success = await editor.edit((edit) => {
+            edit.replace(
+              new Range(
+                currentNameRange.start,
+                new Position(
+                  currentNameRange.end.line,
+                  currentNameRange.end.character + 1
+                )
+              ),
+              createInsertText(symbol)
+            );
+          });
+
+          if (success) {
+            editor.selection = new Selection(
+              currentNameRange.start,
+              currentNameRange.start
+            );
+          }
+        }
       }
     ),
     commands.registerCommand(

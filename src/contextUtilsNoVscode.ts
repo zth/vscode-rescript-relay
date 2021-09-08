@@ -157,7 +157,7 @@ RescriptRelay.dataId`)
 const getNameForNode = (node: ASTNode) => {
   switch (node.kind) {
     case "Field":
-      return node.name.value;
+      return node.alias ? node.alias.value : node.name.value;
     case "InlineFragment":
       return node.typeCondition?.name.value;
   }
@@ -189,6 +189,32 @@ const getNamedPath = (
     ...paths,
     getNameForNode(node),
   ]
+    .filter(Boolean)
+    .join("_");
+};
+
+export const getConnectionKeyName = (
+  ancestors: ReadonlyArray<ASTNode | ReadonlyArray<ASTNode>> | null,
+  node: ASTNode,
+  fragmentName: string
+): string => {
+  const paths = (ancestors || []).reduce((acc: string[], next) => {
+    if (Array.isArray(next)) {
+      return acc;
+    }
+    const node = next as ASTNode;
+
+    switch (node.kind) {
+      case "Field":
+        return [...acc, node.name.value];
+      case "InlineFragment":
+        return [...acc, node.typeCondition?.name.value ?? ""];
+      default:
+        return acc;
+    }
+  }, []);
+
+  return [fragmentName, ...paths, getNameForNode(node)]
     .filter(Boolean)
     .join("_");
 };
