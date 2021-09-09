@@ -2,7 +2,8 @@ import * as path from "path";
 import * as fs from "fs";
 import { pascalCase } from "pascal-case";
 import * as cp from "child_process";
-// @ts-ignore
+import watchman from "fb-watchman";
+// @ts-ignore
 import kill from "tree-kill";
 
 import {
@@ -2380,6 +2381,30 @@ export async function activate(context: ExtensionContext) {
       item.command = "vscode-rescript-relay.show-relay-compiler-output";
       item.tooltip = "Click to see full output";
     }
+
+    function checkThatWatchmanIsInstalled() {
+      const client = new watchman.Client();
+      client.capabilityCheck({ optional: [], required: [] }, () => {});
+      const installText = "Open install instructions";
+      client.on("error", () =>
+        window
+          .showWarningMessage(
+            "The relay compiler can't run automatically because watchman is missing.",
+            installText
+          )
+          .then((item) => {
+            if (item === installText) {
+              env.openExternal(
+                Uri.parse(
+                  "https://facebook.github.io/watchman/docs/install.html"
+                )
+              );
+            }
+          })
+      );
+    }
+
+    checkThatWatchmanIsInstalled();
 
     setStatusBarItemToStart(mainItem);
     mainItem.show();
