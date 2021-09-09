@@ -2389,7 +2389,7 @@ export async function activate(context: ExtensionContext) {
       client.on("error", () =>
         window
           .showWarningMessage(
-            "The relay compiler can't run automatically because watchman is missing.",
+            "The Relay compiler can't run automatically because watchman is missing.",
             installText
           )
           .then((item) => {

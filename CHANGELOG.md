@@ -1,5 +1,7 @@
 ## main
 
+- Check if watchman is installed and warn if not. (@mellson)
+
 ## 0.8.0
 
 - Trigger completion of fragment components on dot-based autocompletes.
