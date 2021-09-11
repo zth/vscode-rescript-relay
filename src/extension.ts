@@ -180,10 +180,7 @@ function formatDocument(textEditor: TextEditor | undefined) {
     return;
   }
 
-  const sources = extractGraphQLSources(
-    textEditor.document.languageId,
-    textEditor.document.getText()
-  );
+  const sources = extractGraphQLSources(textEditor.document.getText());
 
   textEditor.edit((editBuilder: TextEditorEdit) => {
     const textDocument = textEditor.document;
@@ -241,6 +238,16 @@ function initProviders(_context: ExtensionContext) {
         return null;
       }
 
+      const selectedOp = getSelectedGraphQLOperation(
+        document.getText(),
+        selection
+      );
+
+      // Don't run inside of GraphQL operations
+      if (selectedOp != null) {
+        return null;
+      }
+
       const completion = complete(document, selection);
 
       if (completion != null) {
@@ -251,7 +258,6 @@ function initProviders(_context: ExtensionContext) {
         }
 
         let operationsInDoc: GraphQLSource[] | null = extractGraphQLSources(
-          document.languageId,
           document.getText()
         );
 
@@ -320,6 +326,16 @@ function initProviders(_context: ExtensionContext) {
     {
       async provideCompletionItems(document, selection) {
         if (!featureEnabled("contextualCompletions")) {
+          return null;
+        }
+
+        const selectedOp = getSelectedGraphQLOperation(
+          document.getText(),
+          selection
+        );
+
+        // Don't run inside of GraphQL operations
+        if (selectedOp != null) {
           return null;
         }
 
@@ -542,6 +558,16 @@ function initProviders(_context: ExtensionContext) {
           return null;
         }
 
+        const selectedOp = getSelectedGraphQLOperation(
+          document.getText(),
+          selection
+        );
+
+        // Don't run inside of GraphQL operations
+        if (selectedOp != null) {
+          return null;
+        }
+
         // First, check whether the character before > is - (meaning it's a pipe)
         const posBehindPipe = new Position(
           selection.line,
@@ -620,6 +646,16 @@ function initProviders(_context: ExtensionContext) {
   languages.registerHoverProvider("rescript", {
     async provideHover(document, position) {
       if (!featureEnabled("contextualHoverInfo")) {
+        return null;
+      }
+
+      const selectedOp = getSelectedGraphQLOperation(
+        document.getText(),
+        position
+      );
+
+      // Don't run inside of GraphQL operations
+      if (selectedOp != null) {
         return null;
       }
 
@@ -745,6 +781,16 @@ function initProviders(_context: ExtensionContext) {
       selection
     ): Promise<(CodeAction | Command)[] | undefined | null> {
       if (!featureEnabled("contextualCompletions")) {
+        return null;
+      }
+
+      const selectedOp = getSelectedGraphQLOperation(
+        document.getText(),
+        selection instanceof Range ? selection.start : selection
+      );
+
+      // Don't run inside of GraphQL operations
+      if (selectedOp != null) {
         return null;
       }
 

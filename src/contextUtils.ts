@@ -337,7 +337,7 @@ export async function findContext(
     return null;
   }
 
-  const tag = extractGraphQLSources("rescript", docText)?.find(
+  const tag = extractGraphQLSources(docText)?.find(
     (t) =>
       t.type === "TAG" &&
       t.content.includes(`${theCtx.graphqlType} ${theCtx.graphqlName}`)
@@ -431,7 +431,7 @@ export async function getFragmentDefinition(
     return null;
   }
 
-  const tag = extractGraphQLSources("rescript", docText)?.find((source) => {
+  const tag = extractGraphQLSources(docText)?.find((source) => {
     if (
       source.type === "TAG" &&
       source.content.includes(`fragment ${fragmentName}`)

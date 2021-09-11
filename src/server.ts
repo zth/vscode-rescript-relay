@@ -10,7 +10,7 @@ import { createGraphQLConfigSync } from "./graphqlConfig";
       method: "node",
       config: createGraphQLConfigSync(process.env.ROOT_DIR || ""),
       parser: (doc: string) => {
-        const sources = extractGraphQLSources("rescript", doc);
+        const sources = extractGraphQLSources(doc, false);
 
         return (sources || []).reduce((acc: CachedContent[], curr) => {
           if (curr.type === "TAG") {

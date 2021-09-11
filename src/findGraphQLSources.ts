@@ -1,5 +1,6 @@
 import { getLocator } from "locate-character";
 import { GraphQLSource, GraphQLSourceFromTag } from "./extensionTypes";
+import LRUCache from "lru-cache";
 
 /**
  * A helper for extracting GraphQL operations from source via a regexp.
@@ -65,34 +66,35 @@ export const extractGraphQLSourceFromReScript = makeExtractTagsFromSource(
   rescriptGraphQLTagsRegexp
 );
 
+const cache = new LRUCache<string, GraphQLSourceFromTag[]>(5);
+
 export function extractGraphQLSources(
-  languageId: string,
-  document: string
+  document: string,
+  useCache = true
 ): GraphQLSource[] | null {
-  switch (languageId) {
-    case "graphql":
-      return [
-        {
-          type: "FULL_DOCUMENT",
-          content: document,
-        },
-      ];
-    case "rescript":
-      return extractGraphQLSourceFromReScript(document);
-    default:
-      return null;
+  if (useCache) {
+    const cached = cache.get(document);
+
+    if (cached != null) {
+      return cached;
+    }
+
+    const res = extractGraphQLSourceFromReScript(document);
+    cache.set(document, res);
+    return res;
+  } else {
+    return extractGraphQLSourceFromReScript(document);
   }
 }
 
 export function extractSelectedOperation(
-  languageId: string,
   document: string,
   selection: {
     line: number;
     character: number;
   }
 ): GraphQLSource | null {
-  const sources = extractGraphQLSources(languageId, document);
+  const sources = extractGraphQLSources(document);
 
   if (!sources || sources.length < 1) {
     return null;
@@ -124,7 +126,7 @@ export function getSelectedGraphQLOperation(
   doc: string,
   pos: { line: number; character: number }
 ): GraphQLSourceFromTag | null {
-  const selectedOperation = extractSelectedOperation("rescript", doc, {
+  const selectedOperation = extractSelectedOperation(doc, {
     line: pos.line,
     character: pos.character,
   });
