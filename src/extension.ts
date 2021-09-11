@@ -1636,6 +1636,26 @@ function initProviders(_context: ExtensionContext) {
         }
       }
 
+      // Open generated file for op
+      if (
+        firstDef &&
+        (firstDef.kind === "OperationDefinition" ||
+          firstDef.kind === "FragmentDefinition") &&
+        firstDef.name?.value != null
+      ) {
+        const openGeneratedFileAction = new CodeAction(
+          `Open generated Relay file for '${firstDef.name.value}''`
+        );
+
+        openGeneratedFileAction.command = {
+          command: "vscode-rescript-relay.open-generated-file-for-operation",
+          title: "",
+          arguments: [firstDef.name.value],
+        };
+
+        actions.push(openGeneratedFileAction);
+      }
+
       return actions;
     },
   });
@@ -2118,6 +2138,27 @@ function initCommands(context: ExtensionContext): void {
             new Position(startLine, 0),
             new Position(endLine, 0)
           ),
+        });
+      }
+    ),
+    commands.registerCommand(
+      "vscode-rescript-relay.open-generated-file-for-operation",
+      async (opName: string) => {
+        const relayConfig = await loadRelayConfig();
+
+        if (relayConfig == null) {
+          return;
+        }
+
+        const generatedFile = await workspace.openTextDocument(
+          path.resolve(
+            path.join(relayConfig.artifactDirectory, `${opName}_graphql.res`)
+          )
+        );
+
+        await window.showTextDocument(generatedFile, {
+          preserveFocus: true,
+          viewColumn: ViewColumn.Beside,
         });
       }
     ),
