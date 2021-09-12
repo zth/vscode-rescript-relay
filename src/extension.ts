@@ -52,11 +52,16 @@ import {
   prettify,
   restoreOperationPadding,
   uncapitalize,
-  capitalize,
   wrapInJsx,
   getNormalizedSelection,
   fillInFileDataForFragmentSpreadCompletionItems,
   createCompletionItemsForFragmentSpreads,
+  getModuleNameFromFile,
+  fragmentCreationWizard,
+  FragmentCreationSource,
+  copyComponentCodeToClipboard,
+  openFileAndShowMessage,
+  makeNewFragmentComponentJsx,
 } from "./extensionUtils";
 import {
   extractGraphQLSources,
@@ -91,6 +96,7 @@ import {
   FragmentDefinitionNode,
   getLocation,
   GraphQLCompositeType,
+  isCompositeType,
 } from "graphql";
 import {
   loadFullSchema,
@@ -111,7 +117,6 @@ import {
   makeArgument,
   makeFragment,
   makeConnectionsVariable,
-  pickTypeForFragment,
   getFragmentComponentText,
   getNewFilePath,
   getAdjustedPosition,
@@ -137,10 +142,7 @@ import {
   makeFieldSelection,
   getFirstField,
 } from "./graphqlUtilsNoVscode";
-import {
-  extractFragmentRefs,
-  validateRescriptVariableName,
-} from "./extensionUtilsNoVscode";
+import { extractFragmentRefs } from "./extensionUtilsNoVscode";
 
 let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
 
@@ -151,10 +153,6 @@ const killCompiler = () => {
 
   childProcesses = [];
 };
-
-function getModuleNameFromFile(uri: Uri): string {
-  return capitalize(path.basename(uri.path, ".res"));
-}
 
 function makeReplaceOperationEdit(
   uri: Uri,
@@ -1675,7 +1673,7 @@ function initCommands(context: ExtensionContext): void {
     commands.registerCommand(
       "vscode-rescript-relay.extract-to-new-fragment-component",
       async (
-        _uri: Uri,
+        uri: Uri,
         doc: string,
         selection: Range,
         typeInfo: GraphQLTypeAtPos,
@@ -1698,38 +1696,39 @@ function initCommands(context: ExtensionContext): void {
           return;
         }
 
-        const newComponentName = await window.showInputBox({
-          prompt: "Name of your new component",
-          value: getModuleNameFromFile(editor.document.uri),
-          validateInput(v: string): string | null {
-            return /^[a-zA-Z0-9_]*$/.test(v)
-              ? null
-              : "Please only use alphanumeric characters and underscores.";
-          },
-        });
+        const schema = await loadFullSchema();
 
-        if (!newComponentName) {
-          window.showWarningMessage("Your component must have a name.");
+        if (schema == null) {
           return;
         }
 
-        const shouldRemoveSelection = Array.isArray(selectedNodeOrNodes)
-          ? (await window.showQuickPick(["Yes", "No"], {
-              placeHolder:
-                "Do you want to remove the selection from this fragment?",
-            })) === "Yes"
-          : false;
+        const type = schema.getType(typeInfo.parentTypeName);
 
-        const shouldOpenFileDirectly =
-          (await window.showQuickPick(["Yes", "No"], {
-            placeHolder: "Do you want to open the new file directly?",
-          })) === "Yes";
+        if (type == null || !isCompositeType(type)) {
+          return;
+        }
 
-        const onType = getPreferredFragmentPropName(typeInfo.parentTypeName);
+        const newFragmentProps = await fragmentCreationWizard({
+          selectedVariableName: uncapitalize(
+            getPreferredFragmentPropName(type.name)
+          ),
+          type,
+          uri,
+          source: FragmentCreationSource.GraphQLTag,
+        });
 
-        const fragmentName = `${capitalize(newComponentName)}_${uncapitalize(
-          onType
-        )}`;
+        if (newFragmentProps == null) {
+          return;
+        }
+
+        const {
+          variableName,
+          newComponentName,
+          shouldOpenFile,
+          fragmentName,
+          copyToClipboard,
+          shouldRemoveSelection,
+        } = newFragmentProps;
 
         const source = new Source(selectedOperation.content);
         const operationAst = parse(source);
@@ -1838,8 +1837,8 @@ function initCommands(context: ExtensionContext): void {
 
         const newFilePath = getNewFilePath(newComponentName);
 
-        const moduleName = `${pascalCase(onType)}Fragment`;
-        const propName = uncapitalize(onType);
+        const moduleName = `${pascalCase(variableName)}Fragment`;
+        const propName = uncapitalize(variableName);
 
         const newFragment = await makeFragment(
           fragmentName,
@@ -1861,17 +1860,11 @@ function initCommands(context: ExtensionContext): void {
         const newDoc = await workspace.openTextDocument(newFilePath);
         await newDoc.save();
 
-        const msg = `"${newComponentName}.res" was created with your new fragment.`;
-
-        if (shouldOpenFileDirectly) {
-          window.showTextDocument(newDoc);
-        } else {
-          window.showInformationMessage(msg, "Open file").then((m) => {
-            if (m) {
-              window.showTextDocument(newDoc);
-            }
-          });
-        }
+        openFileAndShowMessage({
+          doc: newDoc,
+          shouldOpenFile,
+          newComponentName,
+        });
 
         editor.selection = new Selection(
           new Position(
@@ -1900,6 +1893,16 @@ function initCommands(context: ExtensionContext): void {
           );
         });
 
+        if (copyToClipboard) {
+          copyComponentCodeToClipboard(
+            makeNewFragmentComponentJsx({
+              newComponentName,
+              propName,
+              variableName,
+            })
+          );
+        }
+
         await editor.document.save();
       }
     ),
@@ -1921,48 +1924,24 @@ function initCommands(context: ExtensionContext): void {
           return;
         }
 
-        const newComponentName = await window.showInputBox({
-          prompt: "Name of your new component",
-          value: getModuleNameFromFile(uri),
-          validateInput(v: string): string | null {
-            return /^[a-zA-Z0-9_]*$/.test(v)
-              ? null
-              : "Please only use alphanumeric characters and underscores.";
-          },
+        const newFragmentProps = await fragmentCreationWizard({
+          uri,
+          selectedVariableName,
+          type,
+          source: FragmentCreationSource.Value,
         });
 
-        if (!newComponentName) {
-          window.showWarningMessage("Your component must have a name.");
+        if (newFragmentProps == null) {
           return;
         }
 
-        const onType =
-          (await window.showInputBox({
-            prompt: `What do you want to call the prop name for the fragment?`,
-            value: selectedVariableName,
-            validateInput: (input) => {
-              if (!validateRescriptVariableName(input)) {
-                return "Invalid ReScript variable name";
-              }
-            },
-          })) ?? getPreferredFragmentPropName(type.name);
-
-        const shouldOpenFile = await window.showQuickPick(
-          ["Yes, in the current editor", "Yes, to the right", "No"],
-          {
-            placeHolder: "Do you want to open the new file directly?",
-          }
-        );
-
-        const copyToClipboard =
-          (await window.showQuickPick(["Yes", "No"], {
-            placeHolder:
-              "Do you want to copy the JSX for using the new component to the clipboard?",
-          })) === "Yes";
-
-        const fragmentName = `${capitalize(newComponentName)}_${uncapitalize(
-          onType
-        )}`;
+        const {
+          copyToClipboard,
+          fragmentName,
+          shouldOpenFile,
+          newComponentName,
+          variableName,
+        } = newFragmentProps;
 
         const source = new Source(tag.content);
         const operationAst = parse(source);
@@ -1984,8 +1963,8 @@ function initCommands(context: ExtensionContext): void {
 
         const newFilePath = getNewFilePath(newComponentName);
 
-        const moduleName = `${pascalCase(onType)}Fragment`;
-        const propName = uncapitalize(onType);
+        const moduleName = `${pascalCase(variableName)}Fragment`;
+        const propName = uncapitalize(variableName);
 
         const newFragment = await makeFragment(fragmentName, type.name, [
           makeFieldSelection("__typename"),
@@ -2003,19 +1982,11 @@ function initCommands(context: ExtensionContext): void {
         const newDoc = await workspace.openTextDocument(newFilePath);
         await newDoc.save();
 
-        const msg = `"${newComponentName}.res" was created with your new fragment.`;
-
-        if (shouldOpenFile === "Yes, in the current editor") {
-          window.showTextDocument(newDoc);
-        } else if (shouldOpenFile === "Yes, to the right") {
-          window.showTextDocument(newDoc, ViewColumn.Beside, true);
-        } else if (shouldOpenFile === "No") {
-          window.showInformationMessage(msg, "Open file").then((m) => {
-            if (m) {
-              window.showTextDocument(newDoc);
-            }
-          });
-        }
+        openFileAndShowMessage({
+          doc: newDoc,
+          shouldOpenFile,
+          newComponentName,
+        });
 
         editor.selection = new Selection(
           new Position(
@@ -2041,11 +2012,12 @@ function initCommands(context: ExtensionContext): void {
         await editor.document.save();
 
         if (copyToClipboard) {
-          env.clipboard.writeText(
-            `<${newComponentName} ${propName}=${selectedVariableName}.fragmentRefs />`
-          );
-          window.showInformationMessage(
-            `Code for your new component has been copied to the clipboard.`
+          copyComponentCodeToClipboard(
+            makeNewFragmentComponentJsx({
+              newComponentName,
+              variableName,
+              propName,
+            })
           );
         }
       }
@@ -2062,38 +2034,32 @@ function initCommands(context: ExtensionContext): void {
           return;
         }
 
-        const newComponentName = await window.showInputBox({
-          prompt: "Name of your new component",
-          value: getModuleNameFromFile(editor.document.uri),
-          validateInput(v: string): string | null {
-            return /^[a-zA-Z0-9_]*$/.test(v)
-              ? null
-              : "Please only use alphanumeric characters and underscores.";
-          },
+        const newFragmentProps = await fragmentCreationWizard({
+          selectedVariableName: "",
+          source: FragmentCreationSource.NewFile,
+          type: null!,
+          uri: editor.document.uri,
         });
 
-        if (newComponentName == null) {
+        if (newFragmentProps == null) {
           return;
         }
 
-        const pickedFragmentType = await pickTypeForFragment();
-
-        if (pickedFragmentType == null) {
-          return;
-        }
-
-        const onType = getPreferredFragmentPropName(pickedFragmentType);
-        const fragmentName = `${capitalize(newComponentName)}_${uncapitalize(
-          onType
-        )}`;
-        const moduleName = `${pascalCase(onType)}Fragment`;
-        const propName = uncapitalize(onType);
-
-        const newFragment = await makeFragment(
+        const {
           fragmentName,
-          pickedFragmentType,
-          [makeFieldSelection("__typename")]
-        );
+          newComponentName,
+          variableName,
+          type,
+          shouldOpenFile,
+          copyToClipboard,
+        } = newFragmentProps;
+
+        const moduleName = `${pascalCase(variableName)}Fragment`;
+        const propName = uncapitalize(variableName);
+
+        const newFragment = await makeFragment(fragmentName, type.name, [
+          makeFieldSelection("__typename"),
+        ]);
 
         const newFilePath = getNewFilePath(newComponentName);
 
@@ -2108,7 +2074,22 @@ function initCommands(context: ExtensionContext): void {
 
         const newDoc = await workspace.openTextDocument(newFilePath);
         await newDoc.save();
-        window.showTextDocument(newDoc);
+
+        openFileAndShowMessage({
+          shouldOpenFile,
+          doc: newDoc,
+          newComponentName,
+        });
+
+        if (copyToClipboard) {
+          copyComponentCodeToClipboard(
+            makeNewFragmentComponentJsx({
+              newComponentName,
+              variableName,
+              propName,
+            })
+          );
+        }
       }
     ),
     commands.registerCommand("vscode-rescript-relay.add-query", () =>

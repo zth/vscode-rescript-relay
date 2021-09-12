@@ -7,9 +7,19 @@ import {
   Selection,
   Position,
   CompletionItem,
+  Uri,
+  env,
+  TextDocument,
+  ViewColumn,
 } from "vscode";
 import { GraphQLSourceFromTag } from "./extensionTypes";
 import { getSourceLocOfGraphQL } from "./contextUtils";
+import * as path from "path";
+import { validateRescriptVariableName } from "./extensionUtilsNoVscode";
+import { getPreferredFragmentPropName } from "./utils";
+import { GraphQLCompositeType, isCompositeType } from "graphql";
+import { pickTypeForFragment } from "./graphqlUtils";
+import { loadFullSchema } from "./loadSchema";
 
 export const getNormalizedSelection = (
   range: Range,
@@ -196,3 +206,165 @@ export const fillInFileDataForFragmentSpreadCompletionItems = async (
     ? (processedItems.filter(Boolean) as CompletionItem[])
     : null;
 };
+
+export function getModuleNameFromFile(uri: Uri): string {
+  return capitalize(path.basename(uri.path, ".res"));
+}
+
+export enum FragmentCreationSource {
+  GraphQLTag,
+  Value,
+  NewFile,
+  CodegenInFile,
+}
+
+type FragmentCreationWizardConfig = {
+  uri: Uri;
+  selectedVariableName: string;
+  type: GraphQLCompositeType;
+  source: FragmentCreationSource;
+};
+
+export async function fragmentCreationWizard({
+  uri,
+  selectedVariableName,
+  type,
+  source,
+}: FragmentCreationWizardConfig) {
+  let newComponentName = "";
+
+  if (source === FragmentCreationSource.CodegenInFile) {
+    newComponentName = getModuleNameFromFile(uri);
+  } else {
+    newComponentName = (await window.showInputBox({
+      prompt: "Name of your new component",
+      value: getModuleNameFromFile(uri),
+      validateInput(v: string): string | null {
+        return /^[a-zA-Z0-9_]*$/.test(v)
+          ? null
+          : "Please only use alphanumeric characters and underscores.";
+      },
+    })) as string;
+
+    if (!newComponentName) {
+      window.showWarningMessage("Your component must have a name.");
+      return null;
+    }
+  }
+
+  let typ = type;
+
+  if (
+    source === FragmentCreationSource.NewFile ||
+    source === FragmentCreationSource.CodegenInFile
+  ) {
+    const typeName = await pickTypeForFragment();
+    const schema = await loadFullSchema();
+    const theType = schema?.getType(typeName ?? "");
+
+    if (theType != null && isCompositeType(theType)) {
+      typ = theType;
+    }
+  }
+
+  let theSelectedVariableName =
+    selectedVariableName != null && selectedVariableName !== ""
+      ? selectedVariableName
+      : uncapitalize(getPreferredFragmentPropName(typ.name));
+
+  const variableName =
+    (await window.showInputBox({
+      prompt: `What do you want to call the prop name for the fragment?`,
+      value: theSelectedVariableName,
+      validateInput: (input) => {
+        if (input === "" || !validateRescriptVariableName(input)) {
+          return "Invalid ReScript variable name";
+        }
+      },
+    })) ?? uncapitalize(getPreferredFragmentPropName(typ.name));
+
+  let copyToClipboard = false;
+  let shouldOpenFile = "No";
+
+  if (source !== FragmentCreationSource.CodegenInFile) {
+    shouldOpenFile =
+      (await window.showQuickPick(
+        ["Yes, in the current editor", "Yes, to the right", "No"],
+        {
+          placeHolder: "Do you want to open the new file directly?",
+        }
+      )) ?? "No";
+
+    copyToClipboard =
+      (await window.showQuickPick(["Yes", "No"], {
+        placeHolder:
+          "Do you want to copy the JSX for using the new component to the clipboard?",
+      })) === "Yes";
+  }
+
+  let shouldRemoveSelection = false;
+
+  if (source === FragmentCreationSource.GraphQLTag) {
+    shouldRemoveSelection =
+      (await window.showQuickPick(["Yes", "No"], {
+        placeHolder: "Do you want to remove the selection from this fragment?",
+      })) === "Yes";
+  }
+
+  const fragmentName = `${capitalize(newComponentName)}_${uncapitalize(
+    variableName
+  )}`;
+
+  return {
+    shouldOpenFile,
+    fragmentName,
+    copyToClipboard,
+    newComponentName,
+    variableName,
+    shouldRemoveSelection,
+    type: typ,
+  };
+}
+
+export function copyComponentCodeToClipboard(text: string) {
+  env.clipboard.writeText(text);
+  window.showInformationMessage(
+    `Code for your new component has been copied to the clipboard.`
+  );
+}
+
+export function openFileAndShowMessage({
+  shouldOpenFile,
+  doc,
+  newComponentName,
+}: {
+  shouldOpenFile: string;
+  doc: TextDocument;
+  newComponentName: string;
+}) {
+  const msg = `"${newComponentName}.res" was created with your new fragment.`;
+
+  if (shouldOpenFile === "Yes, in the current editor") {
+    window.showTextDocument(doc);
+  } else if (shouldOpenFile === "Yes, to the right") {
+    window.showTextDocument(doc, ViewColumn.Beside, true);
+  } else if (shouldOpenFile === "No") {
+    window.showInformationMessage(msg, "Open file").then((m) => {
+      if (m) {
+        window.showTextDocument(doc);
+      }
+    });
+  }
+}
+
+export function makeNewFragmentComponentJsx({
+  newComponentName,
+  propName,
+  variableName,
+}: {
+  newComponentName: string;
+  propName: string;
+  variableName: string;
+}) {
+  return `<${newComponentName} ${propName}=${variableName}.fragmentRefs />`;
+}

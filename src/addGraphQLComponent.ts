@@ -1,5 +1,10 @@
 import { InsertGraphQLComponentType } from "./extensionTypes";
-import { capitalize, uncapitalize } from "./extensionUtils";
+import {
+  capitalize,
+  FragmentCreationSource,
+  fragmentCreationWizard,
+  uncapitalize,
+} from "./extensionUtils";
 import { loadFullSchema } from "./loadSchema";
 
 import { TextEditorEdit, window, Selection } from "vscode";
@@ -15,9 +20,7 @@ import {
   makeFragment,
   makeOperation,
   makeVariableDefinitionNode,
-  pickTypeForFragment,
 } from "./graphqlUtils";
-import { getPreferredFragmentPropName } from "./utils";
 import { pascalCase } from "pascal-case";
 import { makeFieldSelection } from "./graphqlUtilsNoVscode";
 
@@ -90,22 +93,25 @@ export async function addGraphQLComponent(type: InsertGraphQLComponentType) {
 
   switch (type) {
     case "Fragment": {
-      const onType = await pickTypeForFragment();
+      const newFragmentProps = await fragmentCreationWizard({
+        selectedVariableName: null!,
+        source: FragmentCreationSource.CodegenInFile,
+        type: null!,
+        uri: textEditor.document.uri,
+      });
 
-      if (!onType) {
+      if (newFragmentProps == null) {
         return;
       }
 
-      const rModuleName = getPreferredFragmentPropName(onType);
-      const fragmentName = `${capitalize(moduleName)}_${uncapitalize(
-        rModuleName
-      )}`;
-      const targetModuleName = `${pascalCase(rModuleName)}Fragment`;
-      const propName = uncapitalize(rModuleName);
+      const { fragmentName, variableName, type } = newFragmentProps;
+
+      const targetModuleName = `${pascalCase(variableName)}Fragment`;
+      const propName = uncapitalize(variableName);
 
       insert += `module ${targetModuleName} = %relay(\`\n  ${await makeFragment(
         fragmentName,
-        onType
+        type.name
       )}\n\`\n)`;
 
       const shouldInsertComponentBoilerplate =
