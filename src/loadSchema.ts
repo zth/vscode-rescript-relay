@@ -1,10 +1,9 @@
 import { GraphQLSchema } from "graphql";
-import { workspace, window } from "vscode";
+import { workspace, window, Uri } from "vscode";
 import { createGraphQLConfig } from "./graphqlConfig";
 import { GraphQLConfig } from "graphql-config";
 import * as path from "path";
 import { hasHighEnoughReScriptRelayVersion } from "./utilsNoVsCode";
-
 interface SchemaCache {
   config: GraphQLConfig;
   schema: GraphQLSchema;
@@ -48,7 +47,13 @@ export const cacheControl = {
 
 export function getCurrentWorkspaceRoot(): string | undefined {
   if (workspace.workspaceFolders) {
-    return workspace.workspaceFolders[0].uri.fsPath;
+    const workspaceFolder = workspace.workspaceFolders[0].uri;
+    const rootDir = workspace
+      .getConfiguration("graphql-config.load")
+      .get("rootDir");
+    if (rootDir && typeof rootDir == "string") {
+      return Uri.joinPath(workspaceFolder, rootDir).fsPath;
+    } else return workspaceFolder.fsPath;
   }
 }
 
@@ -72,7 +77,11 @@ export function getSchemaCacheForWorkspace(
     let schema: GraphQLSchema | undefined;
     let config: GraphQLConfig | undefined;
 
-    config = await createGraphQLConfig(workspaceBaseDir);
+    try {
+      config = await createGraphQLConfig(workspaceBaseDir);
+    } catch {
+      config = undefined;
+    }
 
     if (!config) {
       return;
@@ -208,7 +217,9 @@ export async function isReScriptRelayProject(): Promise<{
           }
         }
       }
-    } catch {}
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   return null;
