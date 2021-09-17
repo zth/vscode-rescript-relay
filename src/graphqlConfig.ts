@@ -1,14 +1,14 @@
 import { GraphQLConfig, loadConfig, loadConfigSync } from "graphql-config";
 import { RelayDirectivesExtension } from "./configUtils";
 
-const makeLoadConfig = (workspaceBaseDir: string) => ({
+const makeLoadConfig = (workspaceBaseDir: string | undefined) => ({
   configName: "relay",
   extensions: [RelayDirectivesExtension],
   rootDir: workspaceBaseDir,
 });
 
 export async function createGraphQLConfig(
-  workspaceBaseDir: string
+  workspaceBaseDir: string | undefined
 ): Promise<GraphQLConfig | undefined> {
   const config = await loadConfig(makeLoadConfig(workspaceBaseDir));
 
@@ -20,7 +20,7 @@ export async function createGraphQLConfig(
 }
 
 export function createGraphQLConfigSync(
-  workspaceBaseDir: string
+  workspaceBaseDir: string | undefined
 ): GraphQLConfig | undefined {
   const config = loadConfigSync(makeLoadConfig(workspaceBaseDir));
 
