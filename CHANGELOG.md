@@ -1,5 +1,11 @@
 ## main
 
+## 0.9.1
+
+- Add monorepo support. (@tsnobip)
+
+## 0.9.0
+
 - Check if watchman is installed and warn if not. (@mellson)
 
 ## 0.8.0
