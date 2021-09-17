@@ -68,7 +68,7 @@
           "type": [
             "string"
           ],
-          "description": "(dummy config, do not touch)"
+          "description": "Folder that contains relay.config.js (defaults to root)"
         }
       }
     },
