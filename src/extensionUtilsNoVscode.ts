@@ -7,15 +7,15 @@ export const extractFragmentRefs = (str: string): string[] => {
   const regex = /RescriptRelay\.fragmentRefs<\s*\[(.*)\]/gm;
   let m: any;
   const res: string[] = [];
+  const theStr = str.replace(/\n/g, "");
 
-  while ((m = regex.exec(str)) !== null) {
+  while ((m = regex.exec(theStr)) !== null) {
     if (m.index === regex.lastIndex) {
       regex.lastIndex++;
     }
 
     if (m[1] != null) {
       const raw = m[1].trim();
-      console.log(raw);
       const extrRegex = /#(\w+)/g;
       let f: any;
       while ((f = extrRegex.exec(raw)) !== null) {

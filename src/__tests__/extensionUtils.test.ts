@@ -37,5 +37,26 @@ describe("extractFragmentRefs", () => {
       fragmentRefs: RescriptRelay.fragmentRefs<[#Avatar_user]>,
     }`)
     ).toEqual(["Avatar_user"]);
+
+    expect(
+      extractFragmentRefs(`fragmentRefs: RescriptRelay.fragmentRefs<
+    [
+      | #TopBarImportantSectionDataUpdatedNotifier_organization
+      | #TopBarImportantSectionUrgentApiConnectionIssues_organization
+    ],
+  >
+  
+  type fragment_organizationBySlug = {
+    fragmentRefs: RescriptRelay.fragmentRefs<
+      [
+        | #TopBarImportantSectionDataUpdatedNotifier_organization
+        | #TopBarImportantSectionUrgentApiConnectionIssues_organization
+      ],
+    >,
+  }`)
+    ).toEqual([
+      "TopBarImportantSectionDataUpdatedNotifier_organization",
+      "TopBarImportantSectionUrgentApiConnectionIssues_organization",
+    ]);
   });
 });
