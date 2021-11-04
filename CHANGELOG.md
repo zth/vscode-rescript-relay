@@ -1,5 +1,7 @@
 ## main
 
+- Add code action for opening source file for fragment spread.
+
 ## 0.9.1
 
 - Add monorepo support. (@tsnobip)

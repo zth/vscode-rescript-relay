@@ -1634,6 +1634,21 @@ function initProviders(_context: ExtensionContext) {
         }
       }
 
+      // Open source file for fragment spread
+      if (state.kind === "FragmentSpread") {
+        const openSourceFile = new CodeAction(
+          `Open source ReScript file defining '${state.name}''`
+        );
+
+        openSourceFile.command = {
+          command: "vscode-rescript-relay.open-source-res-file-for-operation",
+          title: "",
+          arguments: [state.name],
+        };
+
+        actions.push(openSourceFile);
+      }
+
       // Open generated file for op
       if (
         firstDef &&
@@ -2141,6 +2156,22 @@ function initCommands(context: ExtensionContext): void {
           preserveFocus: true,
           viewColumn: ViewColumn.Beside,
         });
+      }
+    ),
+    commands.registerCommand(
+      "vscode-rescript-relay.open-source-res-file-for-operation",
+      async (opName: string) => {
+        const fragment = await getFragmentDefinition(opName);
+
+        if (fragment != null) {
+          const doc = await workspace.openTextDocument(fragment.fileLocation);
+          await window.showTextDocument(doc, {
+            preserveFocus: true,
+            viewColumn: ViewColumn.Beside,
+          });
+        } else {
+          window.showWarningMessage(`Could not locate fragment '${opName}.`);
+        }
       }
     ),
     commands.registerCommand(
