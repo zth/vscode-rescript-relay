@@ -1,5 +1,7 @@
 ## main
 
+## 0.9.2
+
 - Add code action for opening source file for fragment spread.
 
 ## 0.9.1
