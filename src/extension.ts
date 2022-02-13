@@ -530,7 +530,7 @@ function initProviders(_context: ExtensionContext) {
                     item.__extra.ctx.recordName,
                     // @ts-ignore
                     item.__extra.positionCtx.type,
-                    key,
+                    key.toString(),
                     // @ts-ignore
                     item.__extra.ctx.graphqlType
                   )

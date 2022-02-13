@@ -4,7 +4,7 @@
   "version": "0.9.2",
   "main": "./build/extension.js",
   "engines": {
-    "vscode": "^1.52.0"
+    "vscode": "^1.62.0"
   },
   "scripts": {
     "vscode:prepublish": "yarn build",
@@ -24,7 +24,7 @@
   },
   "publisher": "GabrielNordeborn",
   "activationEvents": [
-    "workspaceContains:/**/relay.config.js"
+    "workspaceContains:**/relay.config.{js,cjs,mjs}"
   ],
   "categories": [
     "Other"
@@ -156,7 +156,8 @@
   },
   "dependencies": {
     "@types/lru-cache": "^5.1.1",
-    "graphql": "^14.6.0",
+    "cosmiconfig": "7.0.1",
+    "graphql": "15.8.0",
     "graphql-config": "3.3.0",
     "graphql-language-service-interface": "2.8.4",
     "graphql-language-service-parser": "1.9.2",
@@ -189,6 +190,7 @@
     "vscode": "1.1.37"
   },
   "resolutions": {
+    "graphql": "15.8.0",
     "graphql-config": "3.3.0",
     "graphql-language-service-interface": "2.8.4",
     "graphql-language-service-parser": "1.9.2",
