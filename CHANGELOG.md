@@ -1,5 +1,10 @@
 ## main
 
+## 0.9.3
+
+- Fix fragment name generator generating illegal names in some cases.
+- Support loading `relay.config.cjs` files.
+
 ## 0.9.2
 
 - Add code action for opening source file for fragment spread.

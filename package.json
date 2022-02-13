@@ -1,7 +1,7 @@
 {
   "name": "vscode-rescript-relay",
   "description": "Improve quality-of-life of using RescriptRelay with VSCode.",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "main": "./build/extension.js",
   "engines": {
     "vscode": "^1.62.0"
@@ -183,7 +183,7 @@
     "@types/node": "14.14.33",
     "@types/prettier": "2.2.2",
     "@types/semver": "7.3.4",
-    "@types/vscode": "^1.64.0",
+    "@types/vscode": "^1.62.0",
     "esbuild": "^0.12.9",
     "jest": "26.6.3",
     "ts-jest": "26.5.3"
