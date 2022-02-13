@@ -8,7 +8,6 @@
   },
   "scripts": {
     "vscode:prepublish": "yarn build",
-    "postinstall": "node ./node_modules/vscode/bin/install",
     "build:watch": "tsc -w",
     "test": "jest",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=build/extension.js --external:vscode --format=cjs --platform=node",
@@ -184,10 +183,10 @@
     "@types/node": "14.14.33",
     "@types/prettier": "2.2.2",
     "@types/semver": "7.3.4",
+    "@types/vscode": "^1.64.0",
     "esbuild": "^0.12.9",
     "jest": "26.6.3",
-    "ts-jest": "26.5.3",
-    "vscode": "1.1.37"
+    "ts-jest": "26.5.3"
   },
   "resolutions": {
     "graphql": "15.8.0",
