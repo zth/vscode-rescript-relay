@@ -311,9 +311,9 @@ export async function fragmentCreationWizard({
       })) === "Yes";
   }
 
-  const fragmentName = `${capitalize(newComponentName)}_${uncapitalize(
-    variableName
-  )}`;
+  const fragmentName = `${capitalize(
+    newComponentName.replace(/_/g, "")
+  )}_${uncapitalize(variableName)}`;
 
   return {
     shouldOpenFile,
