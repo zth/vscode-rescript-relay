@@ -38,10 +38,10 @@
     "configuration": {
       "title": "RescriptRelay",
       "properties": {
-        "rescript-relay.autoStartRelayCompiler": {
+        "rescript-relay.useNativeRelayLsp": {
           "type": "boolean",
           "default": true,
-          "description": "Autostart the Relay compiler when in a RescriptRelay project?"
+          "description": "Enable the native Relay LSP (instead of the official GraphQL LSP) if available"
         },
         "rescript-relay.preferShortNames": {
           "type": "boolean",

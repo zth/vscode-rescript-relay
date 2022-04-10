@@ -15,9 +15,8 @@ This extension should _Just Work(tm)_, as it finds and uses your `relay.config.j
 ### General
 
 - Syntax highlighting for GraphQL in ReScript.
-- Autocomplete and validations for your GraphQL operations using the official GraphQL Language Server. Including for Relay specific directives.
+- Autocomplete and validations for your GraphQL operations using the official Relay LSP (or GraphQL Language Server if not available).
 - Automatically formatting all GraphQL operations in your documents on save using `prettier`.
-- Run the Relay compiler through VSCode directly, and get notified when it errors.
 - Project is refreshed and recompiled whenever `relay.config.js` changes.
 - A ton of codegen and automatic GraphQL refactoring is supported.
 - Easily generate new components, extract existing selections to new fragment components, etc.

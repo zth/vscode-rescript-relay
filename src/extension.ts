@@ -23,10 +23,7 @@ import {
   TextEditor,
   ProgressLocation,
   Selection,
-  StatusBarAlignment,
   Diagnostic,
-  Disposable as VSCodeDisposable,
-  StatusBarItem,
   Location,
   Hover,
   MarkdownString,
@@ -143,16 +140,6 @@ import {
   getFirstField,
 } from "./graphqlUtilsNoVscode";
 import { extractFragmentRefs } from "./extensionUtilsNoVscode";
-
-let childProcesses: cp.ChildProcessWithoutNullStreams[] = [];
-
-const killCompiler = () => {
-  childProcesses.forEach((childProcess) => {
-    kill(childProcess.pid);
-  });
-
-  childProcesses = [];
-};
 
 function makeReplaceOperationEdit(
   uri: Uri,
@@ -2282,76 +2269,155 @@ function initCommands(context: ExtensionContext): void {
   );
 }
 
-function initLanguageServer(
+async function initLanguageServer(
   context: ExtensionContext,
   outputChannel: OutputChannel
-): { client: LanguageClient; disposableClient: Disposable } {
-  const serverModule = context.asAbsolutePath(path.join("build", "server.js"));
+): Promise<{
+  client: LanguageClient;
+  disposableClient: Disposable;
+  lspType: "relay" | "graphiql";
+}> {
   const currentWorkspacePath = getCurrentWorkspaceRoot();
 
   if (!currentWorkspacePath) {
     throw new Error("Not inside a workspace.");
   }
 
-  let serverOptions: ServerOptions = {
-    run: {
-      module: serverModule,
-      transport: TransportKind.ipc,
-      options: {
-        env: { ROOT_DIR: currentWorkspacePath },
-      },
-    },
-    debug: {
-      module: serverModule,
-      transport: TransportKind.ipc,
-      options: {
-        env: { ROOT_DIR: currentWorkspacePath },
-      },
-    },
-  };
+  const config = await loadGraphQLConfig();
 
-  let clientOptions: LanguageClientOptions = {
-    documentSelector: [
-      { scheme: "file", language: "graphql" },
-      { scheme: "file", language: "rescript" },
-    ],
-    synchronize: {
-      fileEvents: workspace.createFileSystemWatcher("**/*.res"),
-    },
-    outputChannel: outputChannel,
-    outputChannelName: "ReScriptRelay GraphQL Language Server",
-    revealOutputChannelOn: RevealOutputChannelOn.Never,
-    middleware: {
-      handleDiagnostics(
-        this: void,
-        uri: Uri,
-        d: Diagnostic[],
-        next: HandleDiagnosticsSignature
-      ): void {
-        next(
-          uri,
-          d.filter(
-            (dia) =>
-              !dia.message.includes("Unknown argument") &&
-              !dia.message.includes('on directive "@argumentDefinitions"') &&
-              !dia.message.includes("__id")
-          )
-        );
-      },
-    },
-  };
+  if (!config) {
+    throw new Error(
+      "Could not init language server, did not find Relay config."
+    );
+  }
 
-  const client = new LanguageClient(
-    "vscode-rescript-relay",
-    "ReScriptRelay GraphQL Language Server",
-    serverOptions,
-    clientOptions
+  const shouldCheckNativeRelayLsp = Boolean(
+    workspace.getConfiguration("rescript-relay").get("useNativeRelayLsp")
   );
 
-  const disposableClient = client.start();
-  context.subscriptions.push(disposableClient);
+  const supportsNativeRelayLsp = !shouldCheckNativeRelayLsp
+    ? false
+    : (() => {
+        try {
+          // This checks if the current project supports running the Relay LSP.
+          const res = cp.spawnSync(
+            "npx",
+            ["rescript-relay-compiler", "lsp", "--help"],
+            {
+              cwd: config.dirpath,
+            }
+          );
 
-  return { client, disposableClient };
+          const commandOutput = res.output
+            .map((l) => (l != null ? l.toString() : ""))
+            .join("");
+
+          return commandOutput.includes(
+            "Run the language server. Used by IDEs."
+          );
+        } catch {
+          return false;
+        }
+      })();
+
+  if (supportsNativeRelayLsp) {
+    let serverOptions: ServerOptions = {
+      command: "npx",
+      args: ["rescript-relay-compiler", "lsp"],
+      options: {
+        cwd: config.dirpath,
+      },
+    };
+
+    let clientOptions: LanguageClientOptions = {
+      documentSelector: [
+        { scheme: "file", language: "graphql" },
+        { scheme: "file", language: "rescript" },
+      ],
+      synchronize: {
+        fileEvents: workspace.createFileSystemWatcher("**/*.res"),
+      },
+      outputChannel: outputChannel,
+      outputChannelName: "ReScriptRelay GraphQL Language Server",
+      revealOutputChannelOn: RevealOutputChannelOn.Never,
+    };
+
+    const client = new LanguageClient(
+      "vscode-rescript-relay",
+      "ReScriptRelay GraphQL Language Server",
+      serverOptions,
+      clientOptions
+    );
+
+    const disposableClient = client.start();
+    context.subscriptions.push(disposableClient);
+
+    return { client, disposableClient, lspType: "relay" };
+  } else {
+    const serverModule = context.asAbsolutePath(
+      path.join("build", "server.js")
+    );
+
+    let serverOptions: ServerOptions = {
+      run: {
+        module: serverModule,
+        transport: TransportKind.ipc,
+        options: {
+          env: { ROOT_DIR: currentWorkspacePath },
+        },
+      },
+      debug: {
+        module: serverModule,
+        transport: TransportKind.ipc,
+        options: {
+          env: { ROOT_DIR: currentWorkspacePath },
+        },
+      },
+    };
+
+    let clientOptions: LanguageClientOptions = {
+      documentSelector: [
+        { scheme: "file", language: "graphql" },
+        { scheme: "file", language: "rescript" },
+      ],
+      synchronize: {
+        fileEvents: workspace.createFileSystemWatcher("**/*.res"),
+      },
+      outputChannel: outputChannel,
+      outputChannelName: "ReScriptRelay GraphQL Language Server",
+      revealOutputChannelOn: RevealOutputChannelOn.Never,
+      middleware: {
+        handleDiagnostics(
+          this: void,
+          uri: Uri,
+          d: Diagnostic[],
+          next: HandleDiagnosticsSignature
+        ): void {
+          next(
+            uri,
+            d.filter(
+              (dia) =>
+                !dia.message.includes("Unknown argument") &&
+                !dia.message.includes('on directive "@argumentDefinitions"') &&
+                !dia.message.includes("__id")
+            )
+          );
+        },
+      },
+    };
+
+    const client = new LanguageClient(
+      "vscode-rescript-relay",
+      "ReScriptRelay GraphQL Language Server",
+      serverOptions,
+      clientOptions
+    );
+
+    const disposableClient = client.start();
+    context.subscriptions.push(disposableClient);
+
+    return { client, disposableClient, lspType: "graphiql" };
+  }
 }
 
 export async function activate(context: ExtensionContext) {
@@ -2368,6 +2434,7 @@ export async function activate(context: ExtensionContext) {
 
   let client: LanguageClient | undefined;
   let clientDisposable: Disposable | undefined;
+  let lspType: "relay" | "graphiql" | undefined;
 
   const relayConfig = await loadRelayConfig();
   const graphqlConfig = await loadGraphQLConfig();
@@ -2381,9 +2448,10 @@ export async function activate(context: ExtensionContext) {
       clientDisposable.dispose();
     }
 
-    const inited = initLanguageServer(context, outputChannel);
+    const inited = await initLanguageServer(context, outputChannel);
     client = inited.client;
     clientDisposable = inited.disposableClient;
+    lspType = inited.lspType;
   }
 
   await initClient();
@@ -2404,7 +2472,11 @@ export async function activate(context: ExtensionContext) {
             },
             async () => {
               await cacheControl.refresh(f.uri.fsPath);
-              await initClient();
+
+              // The native Relay LSP watches schema changes by itself.
+              if (lspType === "graphiql") {
+                await initClient();
+              }
             }
           );
         }
@@ -2422,65 +2494,6 @@ export async function activate(context: ExtensionContext) {
   );
 
   if (relayConfig && graphqlConfig) {
-    let relayCompilerOutputChannel: OutputChannel = window.createOutputChannel(
-      "Relay Compiler"
-    );
-
-    context.subscriptions.push(
-      commands.registerCommand(
-        "vscode-rescript-relay.show-relay-compiler-output",
-        () => {
-          relayCompilerOutputChannel.show();
-        }
-      )
-    );
-
-    const mainItem = window.createStatusBarItem(StatusBarAlignment.Right);
-    const extraItemWhenHasError = window.createStatusBarItem(
-      StatusBarAlignment.Right
-    );
-
-    function setStatusBarItemText(item: StatusBarItem, text: string) {
-      const lastText = item.text;
-      item.text = text;
-
-      return () => {
-        item.text = lastText;
-      };
-    }
-
-    function setStatusBarItemToStart(item: StatusBarItem) {
-      setStatusBarItemText(item, "$(debug-start) Start Relay compiler");
-      item.command = "vscode-rescript-relay.start-compiler";
-    }
-
-    function setStatusBarItemToStop(item: StatusBarItem) {
-      setStatusBarItemText(item, "$(debug-stop) Relay Compiler running");
-      item.command = "vscode-rescript-relay.stop-compiler";
-      item.tooltip = "Click to stop";
-    }
-
-    function setStatusBarItemToStopExplicit(item: StatusBarItem) {
-      setStatusBarItemText(item, "$(debug-stop) Stop Relay compiler");
-      item.command = "vscode-rescript-relay.stop-compiler";
-      item.tooltip = "Click to stop";
-    }
-
-    function setStatusBarItemToWroteFiles(item: StatusBarItem) {
-      setStatusBarItemText(
-        item,
-        "$(debug-stop) $(check) Relay Compiler recompiled"
-      );
-      item.command = "vscode-rescript-relay.show-relay-compiler-output";
-      item.tooltip = "Click to see full output";
-    }
-
-    function setStatusBarItemToError(item: StatusBarItem) {
-      setStatusBarItemText(item, "$(error) Relay error!");
-      item.command = "vscode-rescript-relay.show-relay-compiler-output";
-      item.tooltip = "Click to see full output";
-    }
-
     function checkThatWatchmanIsInstalled() {
       const client = new watchman.Client();
       client.capabilityCheck({ optional: [], required: [] }, () => {});
@@ -2488,7 +2501,7 @@ export async function activate(context: ExtensionContext) {
       client.on("error", () =>
         window
           .showWarningMessage(
-            "The Relay compiler can't run automatically because watchman is missing.",
+            "You're missing watchman. Please install watchman to ensure things in this extension work as expected.",
             installText
           )
           .then((item) => {
@@ -2505,145 +2518,27 @@ export async function activate(context: ExtensionContext) {
 
     checkThatWatchmanIsInstalled();
 
-    setStatusBarItemToStart(mainItem);
-    mainItem.show();
+    if (lspType === "graphiql") {
+      const relayConfigWatcher = workspace.createFileSystemWatcher(
+        graphqlConfig.filepath
+      );
 
-    context.subscriptions.push(
-      relayCompilerOutputChannel,
-      commands.registerCommand("vscode-rescript-relay.start-compiler", () => {
-        killCompiler();
-        const childProcess = cp.spawn(
-          // TODO: Do a more robust solution for the PATH that also works with Windows
-          `PATH=$PATH:./node_modules/.bin ${projectType.type}-compiler`,
-          ["--watch"],
+      relayConfigWatcher.onDidChange(async () => {
+        await window.withProgress(
           {
-            cwd: graphqlConfig.dirpath,
-            shell: true,
+            location: ProgressLocation.Notification,
+            title: "relay.config.js changed, refreshing...",
+            cancellable: false,
+          },
+          async () => {
+            await initClient();
           }
         );
-        childProcesses.push(childProcess);
-
-        let errorBuffer: string | undefined;
-        let hasHadError: boolean = false;
-        let statusBarMessageTimeout: any = null;
-
-        if (childProcess.pid != null) {
-          childProcess.stdout.on("data", (data: Buffer) => {
-            const str = data.toString();
-
-            if (/(Created|Updated|Deleted|Unchanged):/g.test(str)) {
-              if (hasHadError) {
-                setStatusBarItemText(mainItem, "$(check) Back to normal");
-                extraItemWhenHasError.hide();
-                setTimeout(() => {
-                  setStatusBarItemToStop(mainItem);
-                }, 3000);
-                hasHadError = false;
-              }
-
-              // We don't want to alert that things changed if they didn't
-              if (/(Created|Updated|Deleted):/g.test(str)) {
-                clearTimeout(statusBarMessageTimeout);
-                setStatusBarItemToWroteFiles(mainItem);
-                statusBarMessageTimeout = setTimeout(() => {
-                  setStatusBarItemToStop(mainItem);
-                }, 3000);
-              }
-            }
-
-            // Error detected or already in buffer, add to the error buffer
-            if (str.includes("ERROR:") || errorBuffer) {
-              errorBuffer += str;
-            }
-
-            if (errorBuffer) {
-              const error = /(?<=ERROR:)([\s\S]*?)(?=Watching for changes )/g.exec(
-                errorBuffer
-              );
-
-              if (error && error[0]) {
-                setStatusBarItemToError(mainItem);
-                setStatusBarItemToStopExplicit(extraItemWhenHasError);
-
-                extraItemWhenHasError.show();
-
-                // Reset error buffer
-                errorBuffer = undefined;
-                hasHadError = true;
-              }
-            }
-
-            relayCompilerOutputChannel.append(str);
-          });
-
-          childProcess.stdout.on("error", (e) => {
-            window.showErrorMessage(e.message);
-          });
-
-          childProcess.stdout.on("close", () => {
-            window.showInformationMessage(
-              "The Relay compiler has been shut down."
-            );
-            killCompiler();
-            setStatusBarItemToStart(mainItem);
-          });
-
-          childProcess.stderr.on("error", (e) => {
-            window.showErrorMessage(e.message);
-          });
-
-          childProcess.stdout.on("end", () => {
-            window.showInformationMessage(
-              "The Relay compiler has been shut down."
-            );
-            killCompiler();
-            setStatusBarItemToStart(mainItem);
-          });
-
-          setStatusBarItemToStop(mainItem);
-        }
-
-        return new VSCodeDisposable(killCompiler);
-      }),
-      commands.registerCommand("vscode-rescript-relay.stop-compiler", () => {
-        setStatusBarItemToStart(mainItem);
-        extraItemWhenHasError.hide();
-
-        return new VSCodeDisposable(killCompiler);
-      })
-    );
-
-    const relayConfigWatcher = workspace.createFileSystemWatcher(
-      graphqlConfig.filepath
-    );
-
-    relayConfigWatcher.onDidChange(async () => {
-      await window.withProgress(
-        {
-          location: ProgressLocation.Notification,
-          title: "relay.config.js changed, refreshing...",
-          cancellable: false,
-        },
-        async () => {
-          await initClient();
-          killCompiler();
-
-          await commands.executeCommand("vscode-rescript-relay.stop-compiler");
-          await commands.executeCommand("vscode-rescript-relay.start-compiler");
-        }
-      );
-    });
-
-    // Autostart the compiler if wanted
-    if (
-      workspace.getConfiguration("rescript-relay").get("autoStartRelayCompiler")
-    ) {
-      await commands.executeCommand("vscode-rescript-relay.start-compiler");
+      });
     }
   }
 }
 
 export function deactivate() {
-  killCompiler();
   console.log('Extension "vscode-rescript-relay" is now de-activated!');
 }
