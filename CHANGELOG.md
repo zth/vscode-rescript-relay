@@ -1,5 +1,7 @@
 ## main
 
+## 0.10.0
+
 - Use the official Relay LSP when available in a project (essentially for RescriptRelay versions `>1.0.0-beta.20`).
 - Remove support for running the compiler automatically. This never worked well enough, and often resulted in weird ghost processes etc. And it's not needed in the same way now that the official Relay LSP is used when available.
 
