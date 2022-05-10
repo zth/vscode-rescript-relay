@@ -1,145 +1,138 @@
-import * as path from "path";
-import * as fs from "fs";
-import { pascalCase } from "pascal-case";
 import * as cp from "child_process";
 import watchman from "fb-watchman";
-// @ts-ignore
-import kill from "tree-kill";
-
+import * as fs from "fs";
 import {
-  workspace,
-  ExtensionContext,
-  window,
-  OutputChannel,
-  commands,
-  TextEditorEdit,
-  Range,
-  Position,
-  languages,
-  CodeAction,
-  Uri,
-  CodeActionKind,
-  WorkspaceEdit,
-  TextEditor,
-  ProgressLocation,
-  Selection,
-  Diagnostic,
-  Location,
-  Hover,
-  MarkdownString,
-  CompletionItem,
-  CompletionItemKind,
-  TextEdit,
-  env,
-  ViewColumn,
-} from "vscode";
-
-import {
-  LanguageClientOptions,
-  Command,
-  RevealOutputChannelOn,
-  Disposable,
-  HandleDiagnosticsSignature,
-  ServerOptions,
-  LanguageClient,
-  TransportKind,
-} from "vscode-languageclient/node";
-
-import {
-  prettify,
-  restoreOperationPadding,
-  uncapitalize,
-  wrapInJsx,
-  getNormalizedSelection,
-  fillInFileDataForFragmentSpreadCompletionItems,
-  createCompletionItemsForFragmentSpreads,
-  getModuleNameFromFile,
-  fragmentCreationWizard,
-  FragmentCreationSource,
-  copyComponentCodeToClipboard,
-  openFileAndShowMessage,
-  makeNewFragmentComponentJsx,
-} from "./extensionUtils";
-import {
-  extractGraphQLSources,
-  getSelectedGraphQLOperation,
-} from "./findGraphQLSources";
+  ArgumentNode,
+  ASTNode,
+  FieldNode,
+  FragmentDefinitionNode,
+  FragmentSpreadNode,
+  getLocation,
+  getNamedType,
+  GraphQLCompositeType,
+  GraphQLInterfaceType,
+  GraphQLObjectType,
+  GraphQLUnionType,
+  InlineFragmentNode,
+  isCompositeType,
+  OperationDefinitionNode,
+  parse,
+  print,
+  SelectionNode,
+  SelectionSetNode,
+  Source,
+  visit,
+} from "graphql";
 import {
   getTokenAtPosition,
   getTypeInfo,
 } from "graphql-language-service-interface/dist/getAutocompleteSuggestions";
 import { Position as GraphQLPosition } from "graphql-language-service-utils";
-
-import { GraphQLSource, GraphQLSourceFromTag } from "./extensionTypes";
-
+import { pascalCase } from "pascal-case";
+import * as path from "path";
+import {
+  CodeAction,
+  CodeActionKind,
+  commands,
+  CompletionItem,
+  CompletionItemKind,
+  Diagnostic,
+  env,
+  ExtensionContext,
+  Hover,
+  languages,
+  Location,
+  MarkdownString,
+  OutputChannel,
+  Position,
+  ProgressLocation,
+  Range,
+  Selection,
+  TextEdit,
+  TextEditor,
+  TextEditorEdit,
+  Uri,
+  ViewColumn,
+  window,
+  workspace,
+  WorkspaceEdit,
+} from "vscode";
+import {
+  Command,
+  Disposable,
+  HandleDiagnosticsSignature,
+  LanguageClient,
+  LanguageClientOptions,
+  RevealOutputChannelOn,
+  ServerOptions,
+  TransportKind,
+} from "vscode-languageclient/node";
 import { addGraphQLComponent } from "./addGraphQLComponent";
-import {
-  parse,
-  GraphQLObjectType,
-  print,
-  visit,
-  Source,
-  FragmentSpreadNode,
-  SelectionNode,
-  getNamedType,
-  ASTNode,
-  FieldNode,
-  GraphQLUnionType,
-  SelectionSetNode,
-  InlineFragmentNode,
-  GraphQLInterfaceType,
-  OperationDefinitionNode,
-  ArgumentNode,
-  FragmentDefinitionNode,
-  getLocation,
-  GraphQLCompositeType,
-  isCompositeType,
-} from "graphql";
-import {
-  loadFullSchema,
-  getCurrentWorkspaceRoot,
-  cacheControl,
-  loadRelayConfig,
-  loadGraphQLConfig,
-  isReScriptRelayProject,
-} from "./loadSchema";
-import {
-  nodeHasVariable,
-  makeVariableDefinitionNode,
-  runOnNodeAtPos,
-  nodeHasDirective,
-  addDirectiveToNode,
-  makeArgumentDefinitionVariable,
-  findPath,
-  makeArgument,
-  makeFragment,
-  makeConnectionsVariable,
-  getFragmentComponentText,
-  getNewFilePath,
-  getAdjustedPosition,
-} from "./graphqlUtils";
-import {
-  addFragmentHere,
-  extractToFragment,
-} from "./createNewFragmentComponentsUtils";
-import { featureEnabled, getPreferredFragmentPropName } from "./utils";
-import { findContext, complete, getFragmentDefinition } from "./contextUtils";
+import { complete, findContext, getFragmentDefinition } from "./contextUtils";
 import {
   addFieldAtPosition,
   addFragmentSpreadAtPosition,
   findGraphQLRecordContext,
   findRecordAndModulesFromCompletion,
+  getConnectionKeyName,
   GraphQLRecordCtx,
   GraphQLType,
   namedTypeToString,
-  getConnectionKeyName,
 } from "./contextUtilsNoVscode";
 import {
-  makeSelectionSet,
-  makeFieldSelection,
-  getFirstField,
-} from "./graphqlUtilsNoVscode";
+  addFragmentHere,
+  extractToFragment,
+} from "./createNewFragmentComponentsUtils";
+import { GraphQLSource, GraphQLSourceFromTag } from "./extensionTypes";
+import {
+  copyComponentCodeToClipboard,
+  createCompletionItemsForFragmentSpreads,
+  fillInFileDataForFragmentSpreadCompletionItems,
+  FragmentCreationSource,
+  fragmentCreationWizard,
+  getModuleNameFromFile,
+  getNormalizedSelection,
+  makeNewFragmentComponentJsx,
+  openFileAndShowMessage,
+  prettify,
+  restoreOperationPadding,
+  uncapitalize,
+  wrapInJsx,
+} from "./extensionUtils";
 import { extractFragmentRefs } from "./extensionUtilsNoVscode";
+import {
+  extractGraphQLSources,
+  getSelectedGraphQLOperation,
+} from "./findGraphQLSources";
+import {
+  addDirectiveToNode,
+  findPath,
+  getAdjustedPosition,
+  getFragmentComponentText,
+  getNewFilePath,
+  makeArgument,
+  makeArgumentDefinitionVariable,
+  makeConnectionsVariable,
+  makeFragment,
+  makeVariableDefinitionNode,
+  nodeHasDirective,
+  nodeHasVariable,
+  runOnNodeAtPos,
+} from "./graphqlUtils";
+import {
+  getFirstField,
+  makeFieldSelection,
+  makeSelectionSet,
+} from "./graphqlUtilsNoVscode";
+import {
+  cacheControl,
+  getCurrentWorkspaceRoot,
+  isReScriptRelayProject,
+  loadFullSchema,
+  loadGraphQLConfig,
+  loadRelayConfig,
+} from "./loadSchema";
+import { featureEnabled, getPreferredFragmentPropName } from "./utils";
 
 function makeReplaceOperationEdit(
   uri: Uri,
@@ -2176,6 +2169,19 @@ function initCommands(context: ExtensionContext): void {
       }
     ),
     commands.registerCommand(
+      "vscode-rescript-relay.open-pos-in-doc",
+      async (rawUri: string, startLine: string, startChar: string) => {
+        const textDoc = await workspace.openTextDocument(rawUri);
+
+        await window.showTextDocument(textDoc, {
+          selection: new Range(
+            new Position(parseInt(startLine), parseInt(startChar)),
+            new Position(parseInt(startLine), parseInt(startChar))
+          ),
+        });
+      }
+    ),
+    commands.registerCommand(
       "vscode-rescript-relay.replace-current-dot-completion",
       async (createInsertText: (symbol: string) => string) => {
         const editor = window.activeTextEditor!;
@@ -2295,30 +2301,29 @@ async function initLanguageServer(
     workspace.getConfiguration("rescript-relay").get("useNativeRelayLsp")
   );
 
-  const supportsNativeRelayLsp = !shouldCheckNativeRelayLsp
-    ? false
-    : (() => {
-        try {
-          // This checks if the current project supports running the Relay LSP.
-          const res = cp.spawnSync(
-            "npx",
-            ["rescript-relay-compiler", "lsp", "--help"],
-            {
-              cwd: config.dirpath,
-            }
-          );
-
-          const commandOutput = res.output
-            .map((l) => (l != null ? l.toString() : ""))
-            .join("");
-
-          return commandOutput.includes(
-            "Run the language server. Used by IDEs."
-          );
-        } catch {
-          return false;
+  const supportsNativeRelayLsp = (() => {
+    if (!shouldCheckNativeRelayLsp) {
+      return false;
+    }
+    try {
+      // This checks if the current project supports running the Relay LSP.
+      const res = cp.spawnSync(
+        "npx",
+        ["rescript-relay-compiler", "lsp", "--help"],
+        {
+          cwd: config.dirpath,
         }
-      })();
+      );
+
+      const commandOutput = res.output
+        .map((l) => (l != null ? l.toString() : ""))
+        .join("");
+
+      return commandOutput.includes("Run the language server. Used by IDEs.");
+    } catch {
+      return false;
+    }
+  })();
 
   if (supportsNativeRelayLsp) {
     let serverOptions: ServerOptions = {
@@ -2420,6 +2425,99 @@ async function initLanguageServer(
   }
 }
 
+async function initRouterLanguageServer(
+  context: ExtensionContext,
+  outputChannel: OutputChannel
+): Promise<null | {
+  client: LanguageClient;
+  disposableClient: Disposable;
+}> {
+  const currentWorkspacePath = getCurrentWorkspaceRoot();
+
+  if (!currentWorkspacePath) {
+    throw new Error("Not inside a workspace.");
+  }
+
+  const config = await loadGraphQLConfig();
+
+  if (!config) {
+    throw new Error(
+      "Could not init language server, did not find Relay config."
+    );
+  }
+
+  const allowUsingEditorToolingForRouter = Boolean(
+    workspace
+      .getConfiguration("rescript-relay")
+      .get("enableRescriptRelayRouterLsp")
+  );
+
+  const supportsRouterLsp = (() => {
+    if (!allowUsingEditorToolingForRouter) {
+      return false;
+    }
+
+    try {
+      // This checks if the current project supports running the router LSP.
+      const res = cp.spawnSync("npx", ["rescript-relay-router-cli", "-help"], {
+        cwd: config.dirpath,
+      });
+
+      if (res.error != null) {
+        throw res.error;
+      }
+
+      const commandOutput = res.output
+        ?.map((l) => (l != null ? l.toString() : ""))
+        .join("");
+
+      return commandOutput.includes("Starts a language server for the router.");
+    } catch (e) {
+      return false;
+    }
+  })();
+
+  if (supportsRouterLsp) {
+    let serverOptions: ServerOptions = {
+      command: "npx",
+      args: ["rescript-relay-router-cli", "lsp", "-stdio"],
+      options: {
+        cwd: config.dirpath,
+      },
+    };
+
+    let clientOptions: LanguageClientOptions = {
+      documentSelector: [
+        { pattern: "**/*Routes.json", language: "rescriptRelayRouter" },
+        { pattern: "**/routes.json", language: "rescriptRelayRouter" },
+        { pattern: "**/*_route_renderer.res", language: "rescript" },
+      ],
+      synchronize: {
+        fileEvents: workspace.createFileSystemWatcher(
+          "**/rescriptRelayRouterConfig.{js,cjs}"
+        ),
+      },
+      outputChannel: outputChannel,
+      outputChannelName: "RescriptRelayRouter Language Server",
+      revealOutputChannelOn: RevealOutputChannelOn.Never,
+    };
+
+    const client = new LanguageClient(
+      "vscode-rescript-relay-router",
+      "RescriptRelayRouter Language Server",
+      serverOptions,
+      clientOptions
+    );
+
+    const disposableClient = client.start();
+    context.subscriptions.push(disposableClient);
+
+    return { client, disposableClient };
+  }
+
+  return null;
+}
+
 export async function activate(context: ExtensionContext) {
   const projectType = await isReScriptRelayProject();
 
@@ -2428,12 +2526,18 @@ export async function activate(context: ExtensionContext) {
     return;
   }
 
-  let outputChannel: OutputChannel = window.createOutputChannel(
+  let relayLspOutputChannel: OutputChannel = window.createOutputChannel(
     "RescriptRelay GraphQL Language Server"
   );
 
+  let routerLspOutputChannel: OutputChannel = window.createOutputChannel(
+    "RescriptRelayRouter Language Server"
+  );
+
   let client: LanguageClient | undefined;
+  let routerLspClient: LanguageClient | undefined;
   let clientDisposable: Disposable | undefined;
+  let routerLspClientDisposable: Disposable | undefined;
   let lspType: "relay" | "graphiql" | undefined;
 
   const relayConfig = await loadRelayConfig();
@@ -2444,14 +2548,29 @@ export async function activate(context: ExtensionContext) {
       await client.stop();
     }
 
+    if (routerLspClient) {
+      await routerLspClient.stop();
+    }
+
     if (clientDisposable) {
       clientDisposable.dispose();
     }
 
-    const inited = await initLanguageServer(context, outputChannel);
+    if (routerLspClientDisposable) {
+      routerLspClientDisposable.dispose();
+    }
+
+    const inited = await initLanguageServer(context, relayLspOutputChannel);
     client = inited.client;
     clientDisposable = inited.disposableClient;
     lspType = inited.lspType;
+
+    const routerLsp = await initRouterLanguageServer(
+      context,
+      routerLspOutputChannel
+    );
+    routerLspClient = routerLsp?.client;
+    routerLspClientDisposable = routerLsp?.disposableClient;
   }
 
   await initClient();

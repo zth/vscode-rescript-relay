@@ -43,6 +43,11 @@
           "default": true,
           "description": "Enable the native Relay LSP (instead of the official GraphQL LSP) if available"
         },
+        "rescript-relay.enableRescriptRelayRouterLsp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable editor tooling for RescriptRelayRouter if the router is used"
+        },
         "rescript-relay.preferShortNames": {
           "type": "boolean",
           "default": true,
@@ -133,6 +138,14 @@
           "GraphQL"
         ],
         "configuration": "./language/language-configuration.json"
+      },
+      {
+        "id": "rescriptRelayRouter",
+        "filenamePatterns": [
+          "**/*Routes.json",
+          "**/routes.json"
+        ],
+        "configuration": "./language/rescriptRelayRouterLanguage-configuration.json"
       }
     ],
     "grammars": [
@@ -150,6 +163,11 @@
         "embeddedLanguages": {
           "meta.embedded.block.graphql": "graphql"
         }
+      },
+      {
+        "language": "rescriptRelayRouter",
+        "scopeName": "source.rescriptRelayRouter",
+        "path": "./syntaxes/rescriptRelayRouter.json"
       }
     ]
   },

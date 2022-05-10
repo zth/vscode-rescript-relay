@@ -1,5 +1,7 @@
 ## main
 
+- Experimental editor tooling support for the unreleased RescriptRelayRouter.
+
 ## 0.10.0
 
 - Use the official Relay LSP when available in a project (essentially for RescriptRelay versions `>1.0.0-beta.20`).
