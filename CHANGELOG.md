@@ -1,5 +1,7 @@
 ## main
 
+## 0.11.0
+
 - Experimental editor tooling support for the unreleased RescriptRelayRouter.
 
 ## 0.10.0
