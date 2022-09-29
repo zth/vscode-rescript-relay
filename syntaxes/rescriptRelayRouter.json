@@ -150,7 +150,7 @@
                   "name": "punctuation.definition.tag"
                 },
                 {
-                  "match": "(:[a-z][A-Za-z0-9]+)",
+                  "match": "(:[a-z][A-Za-z0-9_]+)",
                   "name": "variable.object.property"
                 },
                 {
@@ -158,7 +158,7 @@
                   "name": "keyword.operator"
                 },
                 {
-                  "match": "([a-z0-9A-Z]+)(=)([a-z0-9A-Z\\._<>]+)",
+                  "match": "([a-z0-9A-Z_]+)(=)([a-z0-9A-Z\\._<>]+)",
                   "captures": {
                     "1": {
                       "name": "variable.object.property"
