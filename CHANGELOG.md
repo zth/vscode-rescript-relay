@@ -1,5 +1,9 @@
 ## main
 
+## 0.11.1
+
+- Fix bug in experimental editor tooling for RescriptRelayRouter.
+
 ## 0.11.0
 
 - Experimental editor tooling support for the unreleased RescriptRelayRouter.
