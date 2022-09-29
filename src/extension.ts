@@ -2459,7 +2459,7 @@ async function initRouterLanguageServer(
 
     try {
       // This checks if the current project supports running the router LSP.
-      const res = cp.spawnSync("npx", ["rescript-relay-router-cli", "-help"], {
+      const res = cp.spawnSync("npx", ["rescript-relay-router", "-help"], {
         cwd: config.dirpath,
       });
 
@@ -2480,7 +2480,7 @@ async function initRouterLanguageServer(
   if (supportsRouterLsp) {
     let serverOptions: ServerOptions = {
       command: "npx",
-      args: ["rescript-relay-router-cli", "lsp", "-stdio"],
+      args: ["rescript-relay-router", "lsp", "-stdio"],
       options: {
         cwd: config.dirpath,
       },
@@ -2513,6 +2513,8 @@ async function initRouterLanguageServer(
     context.subscriptions.push(disposableClient);
 
     return { client, disposableClient };
+  } else {
+    outputChannel.appendLine("Could not start router LSP.");
   }
 
   return null;
