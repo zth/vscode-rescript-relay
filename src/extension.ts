@@ -132,6 +132,7 @@ import {
   loadGraphQLConfig,
   loadRelayConfig,
 } from "./loadSchema";
+import { lspAskForRoutesForFile, SingleRoute } from "./lspUtils";
 import { featureEnabled, getPreferredFragmentPropName } from "./utils";
 
 function makeReplaceOperationEdit(
@@ -1654,7 +1655,10 @@ function initProviders(_context: ExtensionContext) {
   });
 }
 
-function initCommands(context: ExtensionContext): void {
+function initCommands(
+  context: ExtensionContext,
+  routerLspClient: LanguageClient | undefined
+): void {
   context.subscriptions.push(
     workspace.onWillSaveTextDocument((event) => {
       const openEditor = window.visibleTextEditors.filter(
@@ -2169,6 +2173,98 @@ function initCommands(context: ExtensionContext): void {
       }
     ),
     commands.registerCommand(
+      "vscode-rescript-relay.open-route-definitions",
+      async (...routeArgs: Array<string>) => {
+        const routes: Array<SingleRoute> = routeArgs.map((r) => {
+          const [sourceFilePath, routeName, line, character] = r.split(";");
+          return {
+            sourceFilePath,
+            routeName,
+            loc: {
+              line: parseInt(line, 10),
+              character: parseInt(character, 10),
+            },
+          };
+        });
+
+        if (routes.length === 0) return;
+
+        let targetRouteName: string | undefined;
+
+        if (routes.length > 1) {
+          targetRouteName = await window.showQuickPick(
+            routes.map((r) => r.routeName),
+            {
+              title: "Choose what route to view",
+            }
+          );
+        } else {
+          targetRouteName = routes[0].routeName;
+        }
+
+        if (targetRouteName == null) return;
+
+        const targetRoute = routes.find((r) => r.routeName === targetRouteName);
+
+        if (targetRoute == null) return;
+
+        const textDoc = await workspace.openTextDocument(
+          targetRoute.sourceFilePath
+        );
+
+        await window.showTextDocument(textDoc, {
+          selection: new Range(
+            new Position(targetRoute.loc.line, targetRoute.loc.character),
+            new Position(targetRoute.loc.line, targetRoute.loc.character)
+          ),
+        });
+      }
+    ),
+    commands.registerCommand(
+      "vscode-rescript-relay.router-use-query-params",
+      async () => {
+        const currentDoc = window.activeTextEditor;
+        if (currentDoc == null) return;
+        if (path.extname(currentDoc.document.fileName) !== ".res") return;
+        if (routerLspClient == null) return;
+
+        const routes = await lspAskForRoutesForFile(
+          routerLspClient,
+          currentDoc.document.fileName
+        );
+
+        if (routes.length === 0) return;
+
+        let targetRouteName: string | undefined;
+
+        if (routes.length > 1) {
+          targetRouteName = await window.showQuickPick(
+            routes.map((r) => r.routeName),
+            {
+              title: "Choose what route to add useQueryParams for",
+            }
+          );
+        } else {
+          targetRouteName = routes[0].routeName;
+        }
+
+        if (targetRouteName == null) return;
+
+        const targetRoute = routes.find((r) => r.routeName === targetRouteName);
+
+        if (targetRoute == null) return;
+
+        currentDoc.edit((b) => {
+          b.insert(
+            currentDoc.selection.start,
+            `let {queryParams} = Routes.${targetRoute.routeName
+              .split("__")
+              .join(".")}.Route.useQueryParams()`
+          );
+        });
+      }
+    ),
+    commands.registerCommand(
       "vscode-rescript-relay.open-pos-in-doc",
       async (rawUri: string, startLine: string, startChar: string) => {
         const textDoc = await workspace.openTextDocument(rawUri);
@@ -2490,7 +2586,7 @@ async function initRouterLanguageServer(
       documentSelector: [
         { pattern: "**/*Routes.json", language: "rescriptRelayRouter" },
         { pattern: "**/routes.json", language: "rescriptRelayRouter" },
-        { pattern: "**/*_route_renderer.res", language: "rescript" },
+        { pattern: "**/*.res", language: "rescript" },
       ],
       synchronize: {
         fileEvents: workspace.createFileSystemWatcher(
@@ -2576,7 +2672,7 @@ export async function activate(context: ExtensionContext) {
   }
 
   await initClient();
-  initCommands(context);
+  initCommands(context, routerLspClient);
   initProviders(context);
 
   const schemaWatcher = workspace.createFileSystemWatcher("**/*.graphql");

@@ -124,6 +124,12 @@
         "title": "Wrap in suspense list",
         "category": "RescriptRelay",
         "when": "editorLangId == rescript"
+      },
+      {
+        "command": "vscode-rescript-relay.router-use-query-params",
+        "title": "Add useQueryParams for route file belongs to",
+        "category": "RescriptRelay",
+        "when": "editorLangId == rescript"
       }
     ],
     "languages": [
