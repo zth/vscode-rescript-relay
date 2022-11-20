@@ -1,5 +1,7 @@
 ## main
 
+## 0.11.2
+
 - More `RescriptRelayRouter` related tooling.
 
 ## 0.11.1
