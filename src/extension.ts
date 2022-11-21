@@ -94,6 +94,7 @@ import {
   getNormalizedSelection,
   makeNewFragmentComponentJsx,
   openFileAndShowMessage,
+  openPosInDoc,
   prettify,
   restoreOperationPadding,
   uncapitalize,
@@ -132,8 +133,14 @@ import {
   loadGraphQLConfig,
   loadRelayConfig,
 } from "./loadSchema";
-import { lspAskForRoutesForFile, SingleRoute } from "./lspUtils";
+import {
+  routerLspMatchUrl,
+  routerLspRoutesForFile,
+  SingleRoute,
+} from "./lspUtils";
 import { featureEnabled, getPreferredFragmentPropName } from "./utils";
+
+let lastMatchedUrl = "";
 
 function makeReplaceOperationEdit(
   uri: Uri,
@@ -2176,7 +2183,14 @@ function initCommands(
       "vscode-rescript-relay.open-route-definitions",
       async (...routeArgs: Array<string>) => {
         const routes: Array<SingleRoute> = routeArgs.map((r) => {
-          const [sourceFilePath, routeName, line, character] = r.split(";");
+          const [
+            sourceFilePath,
+            routeName,
+            line,
+            character,
+            routeRendererFilePath,
+          ] = r.split(";");
+
           return {
             sourceFilePath,
             routeName,
@@ -2184,6 +2198,7 @@ function initCommands(
               line: parseInt(line, 10),
               character: parseInt(character, 10),
             },
+            routeRendererFilePath,
           };
         });
 
@@ -2228,7 +2243,7 @@ function initCommands(
         if (path.extname(currentDoc.document.fileName) !== ".res") return;
         if (routerLspClient == null) return;
 
-        const routes = await lspAskForRoutesForFile(
+        const routes = await routerLspRoutesForFile(
           routerLspClient,
           currentDoc.document.fileName
         );
@@ -2265,16 +2280,65 @@ function initCommands(
       }
     ),
     commands.registerCommand(
+      "vscode-rescript-relay.router-match-url",
+      async () => {
+        if (routerLspClient == null) return;
+
+        const url = await window.showInputBox({
+          title: "URL",
+          prompt: "Insert the URL you want to look up.",
+          value: lastMatchedUrl,
+        });
+
+        if (url == null) return;
+
+        const routes = await routerLspMatchUrl(routerLspClient, url);
+
+        if (routes.length === 0) {
+          window.showInformationMessage("No matching routes found.");
+          return;
+        }
+
+        lastMatchedUrl = url;
+
+        const pickedRoute = await window.showQuickPick(
+          routes.flatMap((r, i) => {
+            const spacing = Array.from({ length: i * 4 })
+              .map((_) => " ")
+              .join("");
+            return [
+              `${spacing}${r.routeName} - route definition`,
+              `${spacing}${r.routeName} - route renderer`,
+            ];
+          })
+        );
+
+        if (pickedRoute == null) return;
+
+        const [routeName, thingToOpen] = pickedRoute.trim().split(" - ");
+        const targetRoute = routes.find((r) => r.routeName === routeName);
+
+        if (targetRoute == null) return null;
+
+        if (thingToOpen === "route definition") {
+          await openPosInDoc(
+            targetRoute.sourceFilePath,
+            targetRoute.loc.line,
+            targetRoute.loc.character
+          );
+        } else if (thingToOpen === "route renderer") {
+          await openPosInDoc(targetRoute.routeRendererFilePath, 0, 0);
+        }
+      }
+    ),
+    commands.registerCommand(
       "vscode-rescript-relay.open-pos-in-doc",
       async (rawUri: string, startLine: string, startChar: string) => {
-        const textDoc = await workspace.openTextDocument(rawUri);
-
-        await window.showTextDocument(textDoc, {
-          selection: new Range(
-            new Position(parseInt(startLine), parseInt(startChar)),
-            new Position(parseInt(startLine), parseInt(startChar))
-          ),
-        });
+        await openPosInDoc(
+          rawUri,
+          parseInt(startLine, 10),
+          parseInt(startChar, 10)
+        );
       }
     ),
     commands.registerCommand(

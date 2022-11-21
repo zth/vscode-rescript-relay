@@ -128,8 +128,13 @@
       {
         "command": "vscode-rescript-relay.router-use-query-params",
         "title": "Add useQueryParams for route file belongs to",
-        "category": "RescriptRelay",
+        "category": "RescriptRelayRouter",
         "when": "editorLangId == rescript"
+      },
+      {
+        "command": "vscode-rescript-relay.router-match-url",
+        "title": "Find routes from URL",
+        "category": "RescriptRelayRouter"
       }
     ],
     "languages": [
