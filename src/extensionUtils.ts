@@ -11,6 +11,7 @@ import {
   env,
   TextDocument,
   ViewColumn,
+  workspace,
 } from "vscode";
 import { GraphQLSourceFromTag } from "./extensionTypes";
 import { getSourceLocOfGraphQL } from "./contextUtils";
@@ -368,3 +369,18 @@ export function makeNewFragmentComponentJsx({
 }) {
   return `<${newComponentName} ${propName}=${variableName}.fragmentRefs />`;
 }
+
+export const openPosInDoc = async (
+  rawUri: string,
+  line: number,
+  column: number
+) => {
+  const textDoc = await workspace.openTextDocument(rawUri);
+
+  await window.showTextDocument(textDoc, {
+    selection: new Range(
+      new Position(line, column),
+      new Position(line, column)
+    ),
+  });
+};
