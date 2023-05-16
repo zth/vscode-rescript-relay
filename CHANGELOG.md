@@ -1,5 +1,9 @@
 ## main
 
+## 0.11.4
+
+- Allow `relay.config.json` as config file.
+
 ## 0.11.3
 
 - More `RescriptRelayRouter` related tooling.
