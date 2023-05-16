@@ -8,6 +8,7 @@ const configLoader = c.cosmiconfigSync("relay", {
     "relay.config.js",
     "relay.json",
     "relay.config.cjs",
+    "relay.config.json",
   ],
 });
 
